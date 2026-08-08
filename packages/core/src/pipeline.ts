@@ -42,6 +42,8 @@ export interface PipelineObservation {
   readonly signal: string;
   readonly confidence: number;
   readonly evidence?: string;
+  /** How the source reached the signal, in its own words. Travels to the record. */
+  readonly basis?: string;
   readonly observedAt: number;
   readonly detail?: Readonly<Record<string, unknown>>;
 }
@@ -182,6 +184,7 @@ export function watch(source: ObservationSource, config: PipelineConfig): Pipeli
           signal: observation.signal,
           confidence: observation.confidence,
           ...(observation.evidence ? { evidence: observation.evidence } : {}),
+          ...(observation.basis ? { basis: observation.basis } : {}),
         },
         proposal: {
           amount: proposal.amount,

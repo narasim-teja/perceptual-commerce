@@ -20,6 +20,12 @@ export interface Observation {
   readonly confidence: number;
   /** Frame hash / CID — whatever makes the ruling auditable later. */
   readonly evidence?: string;
+  /**
+   * How this source reached the signal, in its own words: which detector ran,
+   * what it counted, at what score. Explains the reading without changing what
+   * the reading identifies (see `TriggerContext.basis`).
+   */
+  readonly basis?: string;
   readonly observedAt: number;
   /** Free-form source-specific detail (item, count, region, ...). */
   readonly detail?: Readonly<Record<string, unknown>>;
