@@ -35,6 +35,11 @@
  * setState per frame is how a live panel turns into a slideshow on a projector.
  */
 
+// The signal vocabulary is shared with the server-side source and with the
+// predicate that listens for it, because a string constant duplicated across a
+// trust boundary is a string constant that drifts. The import is a pure
+// formatter: nothing that could spend crosses in either direction.
+import { stockCount, stockLow, stockNominal } from "@pc/perception";
 import { createDetectorClient, type DetectorClient, type DetectorState } from "./detect/client";
 import { DETECTORS, type Box, type DetectorId } from "./detect/spec";
 import { drawScene, FULL_STOCK } from "./scene";
@@ -138,7 +143,14 @@ export interface Perception {
   start(): Promise<void>;
   stop(): void;
   attach(rung: ChainRung | "hero", canvas: HTMLCanvasElement | null): void;
-  setHeroMode(mode: ScreenMode): void;
+  /**
+   * Which rung of the chain the hero frame draws.
+   *
+   * A rung rather than a screen mode, because the chain strip is the control:
+   * the thumbnail you press is the thing that fills the frame, and the two used
+   * to be separate pickers printing the same four words at each other.
+   */
+  setHeroRung(rung: ChainRung): void;
   /** Capture the current frame as the reference the region is compared against. */
   setReference(): void;
   clearReference(): void;
@@ -172,7 +184,7 @@ export function createPerception(options: PerceptionOptions): Perception {
   let source: PerceptionMode = options.mode;
 
   const canvases = new Map<ChainRung | "hero", HTMLCanvasElement>();
-  let heroMode: ScreenMode = "halftone";
+  let heroRung: ChainRung = "halftone";
   let reference: Grid | null = null;
   let sample: Sample | null = null;
   let stock = FULL_STOCK;
@@ -224,7 +236,18 @@ export function createPerception(options: PerceptionOptions): Perception {
     },
   });
 
-  function paintTo(rung: ChainRung | "hero", grid: Grid, mode: ScreenMode, showRegion: boolean) {
+  /**
+   * `blocks` draws the grid as separated cells rather than a continuous screen.
+   * It belongs to the decision grid wherever that grid is drawn, which is now
+   * the strip *and* the hero, so it is a parameter instead of a name check.
+   */
+  function paintTo(
+    rung: ChainRung | "hero",
+    grid: Grid,
+    mode: ScreenMode,
+    showRegion: boolean,
+    blocks = false,
+  ) {
     const canvas = canvases.get(rung);
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -245,7 +268,7 @@ export function createPerception(options: PerceptionOptions): Perception {
       mode,
       ink: INK,
       paper: PAPER,
-      gap: rung === "decision" ? Math.max(1, Math.round(dpr)) : 0,
+      gap: blocks ? Math.max(1, Math.round(dpr)) : 0,
       ...(showRegion ? { region: options.region, regionInk: SIGNAL } : {}),
     });
   }
@@ -313,12 +336,22 @@ export function createPerception(options: PerceptionOptions): Perception {
     paintTo("optical", optical, "optical", false);
     paintTo("halftone", halftone, "halftone", false);
     paintTo("matrix", matrix, "matrix", false);
-    paintTo("decision", decision, "matrix", true);
+    paintTo("decision", decision, "matrix", true, true);
+
+    const heroGrid =
+      heroRung === "optical"
+        ? optical
+        : heroRung === "halftone"
+          ? halftone
+          : heroRung === "matrix"
+            ? matrix
+            : decision;
     paintTo(
       "hero",
-      heroMode === "optical" ? optical : heroMode === "halftone" ? halftone : matrix,
-      heroMode,
+      heroGrid,
+      heroRung === "optical" ? "optical" : heroRung === "halftone" ? "halftone" : "matrix",
       true,
+      heroRung === "decision",
     );
 
     const drift = reference ? divergence(decision, reference, decisionCells) : 0;
@@ -374,10 +407,10 @@ export function createPerception(options: PerceptionOptions): Perception {
       hash: frameHash(decision, decisionCells),
       boxes: fresh ? modelBoxes : [],
       signal: low
-        ? "olive_oil.stock < 3"
+        ? stockLow(target, options.lowAt)
         : fresh
-          ? `olive_oil.stock = ${count}`
-          : "olive_oil.stock nominal",
+          ? stockCount(target, count as number)
+          : stockNominal(target),
       basis,
       low,
       referenced: modelled ? true : Boolean(reference),
@@ -484,8 +517,8 @@ export function createPerception(options: PerceptionOptions): Perception {
       else canvases.delete(rung);
     },
 
-    setHeroMode(mode) {
-      heroMode = mode;
+    setHeroRung(rung) {
+      heroRung = rung;
     },
 
     setReference() {

@@ -24,6 +24,7 @@
         "@huggingface/transformers": "3.8.1",
         "@pc/app": "workspace:*",
         "@pc/core": "workspace:*",
+        "@pc/perception": "workspace:*",
         "@pc/policy": "workspace:*",
         "@pc/settlement": "workspace:*",
         "class-variance-authority": "^0.7.1",

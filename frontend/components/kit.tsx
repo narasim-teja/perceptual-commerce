@@ -53,6 +53,19 @@ const VARIANT: Record<Variant, string> = {
   danger: "field-refuse text-ink",
 };
 
+/**
+ * `sm` exists for the panel head, and its metrics are not free: they are the
+ * Segmented control's, so a button standing in a head next to a status chip
+ * leaves the head exactly the height it was. Three columns share one top rule on
+ * this sheet, and a control that quietly grows one of them breaks the alignment
+ * the whole console is read against.
+ */
+const SIZE: Record<"sm" | "md" | "lg", string> = {
+  sm: "bit-8 px-[9px] py-[6px]",
+  md: "bit-12 px-3 py-[10px]",
+  lg: "bit-16 px-4 py-[14px]",
+};
+
 export function Button({
   variant = "secondary",
   size = "md",
@@ -63,7 +76,7 @@ export function Button({
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg";
   busy?: boolean;
 }) {
   return (
@@ -79,7 +92,7 @@ export function Button({
         // unavailable rather than as an alarm nobody can act on.
         "disabled:pointer-events-none disabled:border-ink-3 disabled:bg-paper-2 disabled:bg-none disabled:text-ink-3 disabled:shadow-none",
         "data-[busy]:animate-pulse",
-        size === "lg" ? "bit-16 px-4 py-[14px]" : "bit-12 px-3 py-[10px]",
+        SIZE[size],
         VARIANT[variant],
         className,
       )}
