@@ -35,7 +35,7 @@ function makeRail(overrides: { simulatePurchase?: boolean } = {}) {
 function anIntent(over: Partial<SpendIntent> = {}): SpendIntent {
   return {
     id: `pc-${Math.random().toString(16).slice(2, 14)}` as IntentId,
-    trigger: { source: "manual", signal: "olive_oil.stock < 3", confidence: 1 },
+    trigger: { source: "manual", signal: "bottle.stock < 3", confidence: 1 },
     proposal: { amount: cents(4299), payee },
     observedAt: NOW,
     ...over,

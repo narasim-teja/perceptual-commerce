@@ -10,7 +10,7 @@
  */
 
 import { cents, watch, type Pipeline, type PipelineEvent, type SpendResult } from "@pc/core";
-import { manualSource, type ManualSource } from "@pc/perception";
+import { isStockLow, manualSource, stockLow, type ManualSource } from "@pc/perception";
 import { monadPolicyPlane } from "@pc/policy";
 import {
   fakeRainServer,
@@ -97,7 +97,7 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
     authorize: { timeoutMs: config.AUTHORIZE_TIMEOUT_MS },
     bucketMs: config.INTENT_BUCKET_MS,
   })
-    .when((observation) => observation.signal.includes("stock <"))
+    .when((observation) => isStockLow(observation.signal))
     .propose(() => ({
       amount: cents(config.DEMO_AMOUNT_USD_CENTS),
       payee,
@@ -118,7 +118,10 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
       return pipeline.push({
         sourceId: camera.id,
         kind: "vision",
-        signal: over.signal ?? "olive_oil.stock < 3",
+        // The CLI's own reading, and it has to name the same subject the browser
+        // does: `bun run demo` and the projected panel are one story, and a judge
+        // who runs both should not be told about two different shelves.
+        signal: over.signal ?? stockLow(config.PERCEPTION_TARGET, config.PERCEPTION_LOW_AT),
         confidence: over.confidence ?? 0.97,
         observedAt: Date.now(),
         ...(over.evidence ? { evidence: over.evidence } : {}),

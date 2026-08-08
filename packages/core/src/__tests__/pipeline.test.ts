@@ -17,7 +17,7 @@ function anObservation(over: Partial<PipelineObservation> = {}): PipelineObserva
   return {
     sourceId: "shelf-cam-1",
     kind: "vision",
-    signal: "olive_oil.stock < 3",
+    signal: "bottle.stock < 3",
     confidence: 0.97,
     observedAt: Date.now(),
     ...over,
@@ -79,7 +79,7 @@ describe("the happy path", () => {
     const settled: SpendIntent[] = [];
     const events: PipelineEvent[] = [];
     const p = watch(emptySource, { policy: allowingPolicy(), rail: recordingRail(settled) })
-      .when((o) => o.signal.startsWith("olive_oil"))
+      .when((o) => o.signal.startsWith("bottle"))
       .propose(basePlan)
       .onEvent((e) => events.push(e));
 
@@ -99,7 +99,7 @@ describe("the happy path", () => {
 
     expect(settled[0]?.trigger.evidence).toBe("sha256:abc123");
     expect(settled[0]?.trigger.confidence).toBe(0.81);
-    expect(settled[0]?.trigger.signal).toBe("olive_oil.stock < 3");
+    expect(settled[0]?.trigger.signal).toBe("bottle.stock < 3");
   });
 });
 

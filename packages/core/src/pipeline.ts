@@ -4,7 +4,7 @@
  *
  *   commerce
  *     .watch(shelfCam)                                    // PERCEPTION (pluggable)
- *     .when(obs => obs.signal === "olive_oil.stock < 3")  // -> SpendIntent
+ *     .when(obs => obs.signal === "bottle.stock < 3")  // -> SpendIntent
  *     .propose(obs => ({ amount: usd(42.99), payee }))    // what to do about it
  *     .verify(payee => payee.isKnown())                   // guard BEFORE the gate
  *     .spend()                                            // authorize -> settle

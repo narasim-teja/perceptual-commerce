@@ -17,7 +17,7 @@ const now = () => NOW;
 function anIntent(overrides: Partial<SpendIntent> = {}): SpendIntent {
   return {
     id: "pc-test-intent" as IntentId,
-    trigger: { source: "manual", signal: "olive_oil.stock < 3", confidence: 1 },
+    trigger: { source: "manual", signal: "bottle.stock < 3", confidence: 1 },
     proposal: {
       amount: cents(4299),
       payee: { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" },

@@ -17,7 +17,7 @@ export type PerceptionSourceKind = "vision" | "manual" | "schedule";
 
 export interface TriggerContext {
   readonly source: PerceptionSourceKind;
-  /** Human-readable predicate that fired, e.g. `"olive_oil.stock < 3"`. */
+  /** Human-readable predicate that fired, e.g. `"bottle.stock < 3"`. */
   readonly signal: string;
   /** 0..1. Perception is probabilistic; the domain owns that instead of hiding it. */
   readonly confidence: number;

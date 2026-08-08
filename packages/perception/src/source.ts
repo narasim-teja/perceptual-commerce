@@ -14,7 +14,7 @@ import type { PerceptionSourceKind } from "@pc/core";
 export interface Observation {
   readonly sourceId: string;
   readonly kind: PerceptionSourceKind;
-  /** The predicate that fired, e.g. `"olive_oil.stock < 3"`. */
+  /** The predicate that fired, e.g. `"bottle.stock < 3"`. See `signal.ts`. */
   readonly signal: string;
   /** 0..1 */
   readonly confidence: number;
