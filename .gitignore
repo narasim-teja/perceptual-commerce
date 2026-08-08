@@ -36,10 +36,15 @@ packages/policy/contract/lib/
 .scratch/
 spikes/.out/
 
-# --- design tooling scratch ---------------------------------------------------
+# --- design tooling -----------------------------------------------------------
 # Working state for the design skill: reference boards, sketches, live config.
 # PRODUCT.md and DESIGN.md are the durable artifacts and stay tracked.
 .impeccable/
+
+# Local agent tooling. `.claude/skills/` alone is ~2.7MB of vendored .mjs, which
+# is 11x this project's entire source and made GitHub report the repo as 90%
+# JavaScript. It is a tool that happens to live here, not part of the product.
+.claude/
 
 # --- os / editor --------------------------------------------------------------
 .DS_Store
