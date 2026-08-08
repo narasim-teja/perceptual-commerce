@@ -11,8 +11,60 @@
  * tired and on a deadline.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { z } from "zod";
+
+/**
+ * Find the repo-root `.env` and fill in anything the runtime did not already
+ * load.
+ *
+ * Needed because different entry points resolve `.env` differently: Bun loads
+ * the one next to the process cwd, and Next loads the one inside `frontend/`.
+ * Rather than making everyone remember a symlink, walk up and merge. Values
+ * already present in `process.env` always win, so a real environment variable
+ * still overrides the file.
+ */
+function mergeRootEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  let dir = process.cwd();
+  for (let depth = 0; depth < 5; depth++) {
+    const candidate = resolve(dir, ".env");
+    // The repo root is the one that also has a workspace package.json.
+    if (existsSync(candidate) && existsSync(resolve(dir, "packages"))) {
+      for (const [key, value] of Object.entries(parseEnvFile(readFileSync(candidate, "utf-8")))) {
+        if (env[key] === undefined || env[key] === "") env[key] = value;
+      }
+      break;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return env;
+}
+
+/** Minimal dotenv: `KEY=value`, `#` comments, optional quotes. */
+function parseEnvFile(contents: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of contents.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    // Only strip a trailing comment when it is preceded by whitespace, so a `#`
+    // inside a value survives.
+    let value = trimmed.slice(eq + 1).replace(/\s+#.*$/, "").trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key) out[key] = value;
+  }
+  return out;
+}
 
 const hexKey = z
   .string()
@@ -69,6 +121,7 @@ let cached: Config | null = null;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (cached) return cached;
+  mergeRootEnv(env);
 
   // Bun keeps trailing whitespace on some .env values; normalise before validating
   // so a stray space does not produce a baffling uuid error.
@@ -117,7 +170,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
 function resolvePem(value: z.infer<typeof schema>): string | null {
   if (value.RAIN_SANDBOX_RSA_PUBKEY_FILE) {
-    return readFileSync(value.RAIN_SANDBOX_RSA_PUBKEY_FILE, "utf-8");
+    // The path in .env is written relative to the repo root, but the process may
+    // be running from frontend/ or packages/app. Try both.
+    const candidates = [
+      value.RAIN_SANDBOX_RSA_PUBKEY_FILE,
+      resolve(process.cwd(), "..", value.RAIN_SANDBOX_RSA_PUBKEY_FILE),
+    ];
+    const found = candidates.find((p) => existsSync(p));
+    if (!found) throw new Error(`RAIN_SANDBOX_RSA_PUBKEY_FILE not found: ${value.RAIN_SANDBOX_RSA_PUBKEY_FILE}`);
+    return readFileSync(found, "utf-8");
   }
   if (value.RAIN_SANDBOX_RSA_PUBKEY_PEM) {
     const pem = value.RAIN_SANDBOX_RSA_PUBKEY_PEM.replace(/\\n/g, "\n");
