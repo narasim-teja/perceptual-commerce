@@ -1,130 +1,230 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* ═══════════════════════════════════════════════════════════════════════════
+   PERCEPTUAL-COMMERCE / BITMAP SPECIMEN
+
+   A specimen sheet for a machine's sight. Newsprint stock, rich black ink, one
+   synth accent. Every surface is either paper or ink; the accent is a field, not
+   a text colour, because #ff5a3c on newsprint is 2.8:1 and fails as text. Black
+   on the accent is 6.4:1 and passes, so the accent only ever appears as a filled
+   block with black set into it.
+
+   Nothing has a border radius. Corners are cut on a 3px step, the way a bitmap
+   letterform turns. Rules are hairlines at full ink.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-inv: var(--ink-inv);
+  --color-ink-inv-2: var(--ink-inv-2);
+  --color-ink-inv-3: var(--ink-inv-3);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+
+  /* `@theme inline` substitutes these into Tailwind utilities rather than
+     emitting them as custom properties, so hand-written rules below must name
+     the next/font variables directly. Referencing --font-bitmap outside a
+     utility resolves to nothing and silently falls back to Courier. */
+  --font-bitmap: var(--font-silkscreen);
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-azeret);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  /* ─── stock ─────────────────────────────────────────────────────────────── */
+  --paper: #f5f3ec;
+  --paper-2: #ece9df;
+  --paper-3: #ded9cb;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* ─── ink ───────────────────────────────────────────────────────────────── */
+  --ink: #0a0a0a;
+  --ink-2: #2e2c29; /* 13.9:1 on paper */
+  --ink-3: #6b6659; /*  5.2:1 on paper */
+
+  /* reversed out of ink */
+  --ink-inv: #f5f3ec; /* 17.8:1 on ink */
+  --ink-inv-2: #a8a296; /*  7.8:1 on ink */
+  --ink-inv-3: #6f6a5e; /*  3.4:1 on ink, rules and disabled only, never body */
+
+  /* ─── the one accent ────────────────────────────────────────────────────── */
+  --signal: #ff5a3c;
+  --signal-ink: #b8341a; /* 5.3:1 on paper, for the rare accent-toned word */
+
+  /* ─── geometry ──────────────────────────────────────────────────────────── */
+  --step: 3px; /* the pixel-step corner cut */
+  --rule: 1px;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--ink);
+    min-width: 0;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+
   html {
-    @apply font-sans;
+    font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+    background: var(--ink);
+    /* Silkscreen is a bitmap face. Smoothing it defeats the point. */
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* Newsprint stock. A matte tooth over everything, multiplied so it darkens
+     rather than fogs. Fixed so it reads as the paper the page is printed on,
+     not as a texture that scrolls with the content. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.055;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  ::selection {
+    background: var(--signal);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbars are part of a console. Make them ink, not chrome. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--paper-3) transparent;
+  }
+}
+
+@layer components {
+  /* ─── the pixel-step corner ─────────────────────────────────────────────── */
+  .step {
+    clip-path: polygon(
+      0 var(--step),
+      var(--step) var(--step),
+      var(--step) 0,
+      calc(100% - var(--step)) 0,
+      calc(100% - var(--step)) var(--step),
+      100% var(--step),
+      100% calc(100% - var(--step)),
+      calc(100% - var(--step)) calc(100% - var(--step)),
+      calc(100% - var(--step)) 100%,
+      var(--step) 100%,
+      var(--step) calc(100% - var(--step)),
+      0 calc(100% - var(--step))
+    );
+  }
+
+  /* ─── bitmap type ───────────────────────────────────────────────────────── */
+  /* Silkscreen renders true only at its integer size steps. Every use below is
+     locked to one, and letter-spacing is whole pixels. */
+  .bit {
+    font-family: var(--font-silkscreen), monospace;
+    font-weight: 400;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .bit-8 {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .bit-12 {
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+  .bit-16 {
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+  .bit-24 {
+    font-size: 24px;
+    letter-spacing: 1px;
+  }
+  .bit-32 {
+    font-size: 32px;
+    letter-spacing: 2px;
+  }
+  .bit-48 {
+    font-size: 48px;
+    letter-spacing: 2px;
+  }
+
+  /* ─── the specimen's label voice ────────────────────────────────────────── */
+  .label {
+    font-family: var(--font-silkscreen), monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--ink-3);
+  }
+
+  .datum {
+    font-family: var(--font-azeret), ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* ─── rules ─────────────────────────────────────────────────────────────── */
+  .rule-dot {
+    border-top: 1px dashed var(--paper-3);
+  }
+
+  /* ─── ink and accent fields ─────────────────────────────────────────────── */
+  .field-ink {
+    background: var(--ink);
+    color: var(--ink-inv);
+  }
+
+  /* A refusal must survive a bad projector and a colourblind judge, so it is a
+     hatched field, not a red one. The stripes are the signal; the colour is a
+     bonus. */
+  .field-refuse {
+    background-color: var(--signal);
+    color: var(--ink);
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(10, 10, 10, 0.22) 0 6px,
+      transparent 6px 12px
+    );
+  }
+
+  /* A permit is solid ink. Solid versus hatched reads at any distance. */
+  .field-permit {
+    background: var(--ink);
+    color: var(--ink-inv);
+  }
+
+  /* ─── the dot lattice, used as a well behind imaging surfaces ───────────── */
+  .lattice {
+    background-image: radial-gradient(var(--paper-3) 1px, transparent 1px);
+    background-size: 6px 6px;
+    background-position: -1px -1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
