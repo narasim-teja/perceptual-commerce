@@ -232,6 +232,18 @@ export function snapshot() {
   return {
     config: describeConfig(service.config),
     rail: service.config.RAIL,
+    // The browser owns the perception plane, so it has to be told which source
+    // to open and what threshold the operator configured.
+    perception: {
+      mode: service.config.PERCEPTION_MODE,
+      threshold: service.config.PERCEPTION_THRESHOLD,
+    },
+    payee: {
+      id: service.config.DEMO_PAYEE_ID,
+      name: service.config.DEMO_MERCHANT_NAME,
+      mcc: service.config.DEMO_MCC,
+      amount: service.config.DEMO_AMOUNT_USD_CENTS,
+    },
     explorerBase: "https://testnet.monadexplorer.com",
     cardsMinted: service.loop.fake ? service.loop.fake.cards.size : null,
     events: service.events.slice(-60),

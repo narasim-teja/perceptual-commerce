@@ -96,6 +96,24 @@ const schema = z.object({
   DEMO_PAYEE_ID: z.string().min(1).default("restaurant-depot"),
   DEMO_AMOUNT_USD_CENTS: z.coerce.number().int().positive().default(4299),
 
+  // ─── Perception ───────────────────────────────────────────────────────────
+  /**
+   * Where observations come from.
+   *
+   * `camera` opens a webcam in the browser and watches a fixed region of the
+   * frame. `simulated` drives the identical sampler from an authored scene, so
+   * the whole loop can be exercised on a machine with no camera, in a room with
+   * no shelf, or in CI. Neither the pipeline nor the policy plane can tell them
+   * apart, which is the point: this only selects the source, never the spine.
+   */
+  PERCEPTION_MODE: z.enum(["simulated", "camera"]).default("simulated"),
+  /**
+   * Fraction of the watched region that must diverge from its reference before
+   * the source emits `stock < 3`. Raise it in a bright room, lower it if the
+   * shelf is small in frame.
+   */
+  PERCEPTION_THRESHOLD: z.coerce.number().min(0.01).max(0.99).default(0.32),
+
   // ─── Behaviour ────────────────────────────────────────────────────────────
   /** `fake` runs against fixtures.ts: no network, no cards. Default, on purpose. */
   RAIL: z.enum(["fake", "rain"]).default("fake"),
@@ -197,6 +215,7 @@ export function resetConfig(): void {
 export function describeConfig(config: Config): Record<string, string> {
   return {
     rail: config.RAIL,
+    perception: `${config.PERCEPTION_MODE} (threshold ${config.PERCEPTION_THRESHOLD})`,
     rainBaseUrl: config.RAIN_BASE_URL,
     rainUserId: config.RAIN_USER_ID,
     monadRpc: config.MONAD_RPC_URL,
