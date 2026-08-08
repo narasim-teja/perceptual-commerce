@@ -1,0 +1,15 @@
+{
+  "name": "@pc/settlement",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The rails. Dumb executors that refuse to act without an Authorization. Rain card rail for the POC.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./rain": "./src/rain/index.ts"
+  },
+  "dependencies": {
+    "@pc/core": "workspace:*",
+    "zod": "^4.1.13"
+  }
+}
