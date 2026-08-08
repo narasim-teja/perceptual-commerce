@@ -135,7 +135,6 @@ const schema = z.object({
   // ─── Behaviour ────────────────────────────────────────────────────────────
   /** `fake` runs against fixtures.ts: no network, no cards. Default, on purpose. */
   RAIL: z.enum(["fake", "rain"]).default("fake"),
-  PORT: z.coerce.number().int().positive().default(8787),
   /**
    * How long identical facts collapse to one IntentId.
    *
