@@ -14,8 +14,9 @@
  * where the loop would need to live somewhere with actual persistence.
  */
 
-import { describeError, type PipelineEvent, type SpendResult } from "@pc/core";
+import { describeError, type PipelineEvent, type Receipt, type SpendResult } from "@pc/core";
 import { policyAbi, reasonFromCode } from "@pc/policy";
+import { listTransactions, probeWrongCategory } from "@pc/settlement";
 import { createPublicClient, createWalletClient, http, keccak256, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
@@ -78,6 +79,41 @@ export function getService(): Service {
 
   const loop = buildRestockLoop({
     config,
+    /**
+     * Demo beat 5, landed in the only window where it can happen.
+     *
+     * A scoped card is retired by its first approved authorization, so the
+     * wrong-category probe has to run between mint and purchase. A decline is
+     * free and does not consume the card, so this costs nothing.
+     */
+    beforePurchase: async (card) => {
+      const probe = await probeWrongCategory(
+        service.loop.rainClient,
+        card.cardId,
+        Math.min(2599, config.DEMO_AMOUNT_USD_CENTS),
+        config.DEMO_WRONG_MCC,
+      );
+      const feed: FeedEvent = {
+        id: service.nextEventId++,
+        stage: probe.declined ? "rejected" : "observed",
+        at: Date.now(),
+        detail: probe.declined
+          ? `wrong category (MCC ${config.DEMO_WRONG_MCC}) refused by the issuer — ${probe.reason}`
+          : `wrong-category probe did NOT decline: ${probe.reason}`,
+        intentId: null,
+        signal: `probe: MCC ${config.DEMO_WRONG_MCC}`,
+        confidence: null,
+        amount: null,
+        payee: null,
+        mcc: config.DEMO_WRONG_MCC,
+        onchainRef: null,
+        cardLast4: card.last4,
+        transactionId: null,
+        error: null,
+      };
+      service.events.push(feed);
+      for (const send of service.subscribers) send(feed);
+    },
     onEvent: (event) => {
       const feed = toFeedEvent(event, service.nextEventId++);
       service.events.push(feed);
@@ -215,4 +251,149 @@ export function subscribe(send: (event: FeedEvent) => void): () => void {
 
 export function recentEvents(limit = 40): FeedEvent[] {
   return getService().events.slice(-limit);
+}
+
+// ─── demo beats that are not part of the spend path ───────────────────────────
+
+/**
+ * The wrong-category probe — demo beat 5.
+ *
+ * Deliberately NOT part of `settle()`: the rail must not contain a code path
+ * that is designed to be declined. This sends a legitimate authorization at a
+ * category the card is not scoped to and lets the issuer refuse it. We do not
+ * pass a forced `declineReason`, because a forced decline proves nothing.
+ *
+ * Run it BEFORE the successful purchase. A decline is free; an approval retires
+ * the card.
+ */
+export async function probeDecline(): Promise<{
+  ok: boolean;
+  declined: boolean;
+  reason: string;
+  cardId: string | null;
+}> {
+  const { config, loop } = getService();
+  const receipt = latestReceipt();
+  if (!receipt?.cardId) {
+    return { ok: false, declined: false, reason: "no card yet — trigger the loop first", cardId: null };
+  }
+  const client = loop.rainClient;
+  const result = await probeWrongCategory(
+    client,
+    receipt.cardId,
+    Math.min(2599, config.DEMO_AMOUNT_USD_CENTS),
+    config.DEMO_WRONG_MCC,
+  );
+  return { ok: true, ...result, cardId: receipt.cardId };
+}
+
+/** Every receipt this session, newest first. The audit trail, as the UI sees it. */
+export function receipts(): Receipt[] {
+  const { events } = getService();
+  const seen = new Map<string, Receipt>();
+  for (const event of events) {
+    if (event.stage === "settled" && event.intentId && event.transactionId) {
+      const existing = seen.get(event.intentId);
+      if (!existing) {
+        seen.set(event.intentId, {
+          intentId: event.intentId as Receipt["intentId"],
+          rail: "card",
+          amount: (event.amount ?? 0) as Receipt["amount"],
+          settledAt: event.at,
+          ...(event.cardLast4 ? { last4: event.cardLast4 } : {}),
+          ...(event.transactionId ? { transactionId: event.transactionId } : {}),
+          ...(event.onchainRef ? { onchainRef: event.onchainRef as `0x${string}` } : {}),
+        });
+      }
+    }
+  }
+  return [...seen.values()].reverse();
+}
+
+function latestReceipt(): Receipt | null {
+  const { lastResult } = getService();
+  if (lastResult?.ok) return lastResult.receipt;
+  return receipts()[0] ?? null;
+}
+
+/** Transactions as the issuer sees them — the independent record. */
+export async function issuerTransactions(): Promise<unknown[]> {
+  const { loop } = getService();
+  const receipt = latestReceipt();
+  const result = await listTransactions(loop.rainClient, {
+    ...(receipt?.cardId ? { cardId: receipt.cardId } : {}),
+    limit: 20,
+  });
+  return result.ok ? result.value : [];
+}
+
+/**
+ * Toggle a payee on the onchain allowlist.
+ *
+ * Good demo material: remove the supplier, trigger, and watch the gate refuse
+ * with `payee_not_allowed` — a different refusal from the kill switch, and one
+ * that costs no gas because the free read catches it first.
+ */
+export async function setPayeeAllowed(payeeId: string, allowed: boolean): Promise<{ tx: string }> {
+  const { config } = getService();
+  if (!config.DEPLOYER_PRIVATE_KEY) throw new Error("no DEPLOYER_PRIVATE_KEY — the contract cannot be written to");
+  const account = privateKeyToAccount(config.DEPLOYER_PRIVATE_KEY);
+  const wallet = createWalletClient({ account, chain: monadTestnet, transport: http(config.MONAD_RPC_URL) });
+  const hash = await wallet.writeContract({
+    address: config.POLICY_CONTRACT_ADDRESS as `0x${string}`,
+    abi: policyAbi,
+    functionName: "setPayee",
+    args: [keccak256(toBytes(payeeId)), allowed],
+    account,
+    chain: monadTestnet,
+  });
+  const receipt = await publicClient(config).waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error("setPayee reverted");
+  return { tx: hash };
+}
+
+/** Pre-flight: is everything the demo depends on actually reachable? */
+export async function health() {
+  const { config, loop } = getService();
+  const checks: Array<{ name: string; ok: boolean; detail: string }> = [];
+
+  try {
+    const client = publicClient(config);
+    const block = await client.getBlockNumber();
+    checks.push({ name: "monad rpc", ok: true, detail: `block ${block}` });
+  } catch (e) {
+    checks.push({ name: "monad rpc", ok: false, detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  try {
+    const state = await readPolicyState();
+    // `ok` must mean "the demo will work right now". A velocity-exhausted gate
+    // denies just as hard as an active kill switch, so both fail this check.
+    checks.push({
+      name: "policy contract",
+      ok: state.wouldAllow,
+      detail: state.wouldAllow ? "would allow" : `would DENY — ${state.reason}`,
+    });
+  } catch (e) {
+    checks.push({ name: "policy contract", ok: false, detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  checks.push({
+    name: "ruling key",
+    ok: Boolean(config.DEPLOYER_PRIVATE_KEY),
+    detail: config.DEPLOYER_PRIVATE_KEY ? "present" : "absent — the gate cannot allow without one",
+  });
+
+  if (config.RAIL === "rain") {
+    const result = await listTransactions(loop.rainClient, { limit: 1 });
+    checks.push({
+      name: "rain api",
+      ok: result.ok,
+      detail: result.ok ? "authenticated" : result.error.message,
+    });
+  } else {
+    checks.push({ name: "rain api", ok: true, detail: "simulated rail — not contacted" });
+  }
+
+  return { ok: checks.every((c) => c.ok), checks };
 }

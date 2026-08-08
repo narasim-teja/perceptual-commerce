@@ -12,7 +12,14 @@
 import { cents, watch, type Pipeline, type PipelineEvent, type SpendResult } from "@pc/core";
 import { manualSource, type ManualSource } from "@pc/perception";
 import { monadPolicyPlane } from "@pc/policy";
-import { fakeRainServer, rainCardRail, rainClient, type FakeRainServer } from "@pc/settlement";
+import {
+  fakeRainServer,
+  rainCardRail,
+  rainClient,
+  type FakeRainServer,
+  type MintedCard,
+  type RainClient,
+} from "@pc/settlement";
 import { loadConfig, type Config } from "./config.ts";
 
 /** Suppliers we are willing to pay. The `.verify()` guard checks against this. */
@@ -24,6 +31,8 @@ export interface RestockLoop {
   readonly config: Config;
   /** Non-null when running against the fake — exposes what the fake server saw. */
   readonly fake: FakeRainServer | null;
+  /** For demo beats that sit outside the spend path (the decline probe, reads). */
+  readonly rainClient: RainClient;
   /** Fire one observation and run it all the way through. */
   trigger(over?: { signal?: string; confidence?: number; evidence?: string }): Promise<SpendResult | null>;
 }
@@ -31,6 +40,8 @@ export interface RestockLoop {
 export interface RestockOptions {
   readonly config?: Config;
   readonly onEvent?: (event: PipelineEvent) => void;
+  /** Runs after the card is minted, before it is used. See RainCardRailConfig. */
+  readonly beforePurchase?: (card: MintedCard) => Promise<void> | void;
 }
 
 export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
@@ -65,6 +76,7 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
     pem: fake ? fake.pem : config.rainPublicKeyPem!,
     // There is no real merchant in the room, so we drive the purchase ourselves.
     simulatePurchase: true,
+    ...(options.beforePurchase ? { beforePurchase: options.beforePurchase } : {}),
   });
 
   const payee = {
@@ -96,6 +108,7 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
     camera,
     config,
     fake,
+    rainClient: client,
     async trigger(over = {}) {
       return pipeline.push({
         sourceId: camera.id,

@@ -48,6 +48,19 @@ export interface RainCardRailConfig {
    */
   readonly simulatePurchase?: boolean;
   readonly onEvent?: (event: RailEvent) => void;
+  /**
+   * Called after the instrument is minted and BEFORE it is used.
+   *
+   * Exists for one reason: a scoped card is retired by its first *approved*
+   * authorization, so anything that wants to observe the card while it is still
+   * alive — the wrong-category probe in particular — has exactly this window.
+   * Declines are free and do not consume it.
+   *
+   * The rail itself stays free of any code path designed to be declined; it just
+   * yields the window. Whatever the caller does here cannot affect the outcome:
+   * a throw is swallowed, because a demo flourish must never fail a payment.
+   */
+  readonly beforePurchase?: (card: MintedCard) => Promise<void> | void;
 }
 
 export type RailEvent =
@@ -116,6 +129,14 @@ export function rainCardRail(config: RainCardRailConfig): SettlementRail {
       if (!simulate) {
         receipts.set(intent.id, receipt);
         return { ok: true, receipt };
+      }
+
+      if (config.beforePurchase) {
+        try {
+          await config.beforePurchase(card);
+        } catch {
+          // Never let an observer break the spend.
+        }
       }
 
       // ─── drive the simulated purchase (demo only) ──────────────────────────
