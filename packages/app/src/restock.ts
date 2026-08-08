@@ -34,7 +34,12 @@ export interface RestockLoop {
   /** For demo beats that sit outside the spend path (the decline probe, reads). */
   readonly rainClient: RainClient;
   /** Fire one observation and run it all the way through. */
-  trigger(over?: { signal?: string; confidence?: number; evidence?: string }): Promise<SpendResult | null>;
+  trigger(over?: {
+    signal?: string;
+    confidence?: number;
+    evidence?: string;
+    basis?: string;
+  }): Promise<SpendResult | null>;
 }
 
 export interface RestockOptions {
@@ -117,6 +122,7 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
         confidence: over.confidence ?? 0.97,
         observedAt: Date.now(),
         ...(over.evidence ? { evidence: over.evidence } : {}),
+        ...(over.basis ? { basis: over.basis } : {}),
       });
     },
   };

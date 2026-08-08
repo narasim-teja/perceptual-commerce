@@ -128,7 +128,8 @@ export default function Page() {
         const result = await postObservation({
           signal: sample.signal,
           confidence: Number(sample.confidence.toFixed(2)),
-          evidence: `frame:${sample.hash} div:${sample.divergence.toFixed(3)}`,
+          evidence: `frame:${sample.hash}`,
+          basis: sample.basis,
         });
         if (result.ok) {
           setNotice({
@@ -225,6 +226,9 @@ export default function Page() {
         <Sight
           mode={status?.perception.mode ?? "simulated"}
           threshold={status?.perception.threshold ?? 0.32}
+          detector={status?.perception.detector ?? "screen"}
+          target={status?.perception.target ?? "bottle"}
+          lowAt={status?.perception.lowAt ?? 3}
           busy={submitting}
           onSubmit={submit}
         />

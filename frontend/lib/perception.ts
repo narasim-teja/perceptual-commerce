@@ -8,17 +8,35 @@
  * the trust boundary is a fact about where the code executes rather than a claim
  * in a diagram.
  *
- * It is also deliberately dumb, exactly as `packages/perception/src/vision.ts`
- * specifies: sample a region, compare it against a reference frame, and emit a
- * predicate past a threshold. No model. The number that the whole ruling turns
- * on is a mean absolute difference over roughly a hundred luminance values, and
- * the interface says so rather than implying something cleverer.
+ * ─── two stages, and why ────────────────────────────────────────────────────
+ *
+ * A model on every frame is the obvious design and the wrong one. Inference is
+ * tens to hundreds of milliseconds, and a shelf is unchanged in almost every
+ * frame you could spend it on. So:
+ *
+ *   stage 0, 12Hz   reduce the frame, compare the watched region to a reference.
+ *                   Sub-millisecond, no model. Its only job is to decide *when*
+ *                   an inference is worth running.
+ *   stage 1, gated  hand the region to a detector and get back a count. Runs at
+ *                   most every DETECT_EVERY_MS, and only when stage 0 saw the
+ *                   region move or nothing has been read in a while.
+ *   stage 2, always require TRIP_RUN consecutive low readings before firing.
+ *                   This is what stops a hand passing in front of the lens from
+ *                   minting a card, which is the single most likely way this
+ *                   demo fails on stage.
+ *
+ * With the `screen` detector, stage 1 is the divergence number itself and
+ * nothing is downloaded. With `objects` or `open-vocab` the count comes from a
+ * model in a worker. Downstream cannot tell: all three produce the same
+ * observation, and the pipeline, the gate and the rail see one shape.
  *
  * React is kept out of the frame loop entirely. Canvases are painted from the
  * loop directly and readouts are published on a slower cadence, because a
  * setState per frame is how a live panel turns into a slideshow on a projector.
  */
 
+import { createDetectorClient, type DetectorClient, type DetectorState } from "./detect/client";
+import { DETECTORS, type Box, type DetectorId } from "./detect/spec";
 import { drawScene, FULL_STOCK } from "./scene";
 import {
   divergence,
@@ -34,37 +52,51 @@ import {
 
 export type PerceptionMode = "camera" | "simulated";
 
-export type PerceptionStatus =
-  | "idle"
-  | "starting"
-  | "live"
-  | "denied"
-  | "unavailable"
-  | "stopped";
+export type PerceptionStatus = "idle" | "starting" | "live" | "denied" | "unavailable" | "stopped";
 
 export interface Sample {
   readonly at: number;
-  /** Mean absolute difference over the watched cells of the decision grid. */
+  /** Which detector produced this reading. */
+  readonly detector: DetectorId;
+  /** Mean absolute difference over the watched cells. Always computed; stage 0. */
   readonly divergence: number;
-  /** Distance from the decision boundary, 0 to 1. Low means "not sure". */
+  /**
+   * Instances the detector counted, or `null` when it cannot count.
+   *
+   * The screen detector measures how much changed, not how many things there
+   * are, so it reports `null` rather than an invented number. An implied count
+   * printed as a count would be the one dishonest value on the sheet.
+   */
+  readonly count: number | null;
+  /** 0..1. Distance from the decision boundary. Low means "not sure". */
   readonly confidence: number;
   /** FNV-1a over the decision grid. Travels with the intent as evidence. */
   readonly hash: string;
-  /** Count implied by the divergence. A proxy, and labelled as one on screen. */
-  readonly stock: number;
+  /** Where the detector found the target, normalised to the watched region. */
+  readonly boxes: readonly Box[];
   /** The predicate this reading produces. Only the low one matches the pipeline. */
   readonly signal: string;
+  /** One line naming the mechanism. Travels to the server and into the record. */
+  readonly basis: string;
   readonly low: boolean;
   readonly referenced: boolean;
+  /** Inference time in ms, when a model ran. */
+  readonly latencyMs: number | null;
 }
 
 export interface PerceptionOptions {
   readonly mode: PerceptionMode;
   readonly region: Region;
   readonly threshold: number;
+  readonly detector: DetectorId;
+  /** What the model detectors count. A COCO class, or any phrase. */
+  readonly target: string;
+  /** Instances at or below this read as low stock. */
+  readonly lowAt: number;
   onStatus(status: PerceptionStatus, note: string | null): void;
   onSample(sample: Sample): void;
-  /** Fired once when a run of readings crosses the threshold. */
+  onDetector(state: DetectorState): void;
+  /** Fired once when a run of readings crosses the boundary. */
   onTrip(sample: Sample): void;
 }
 
@@ -82,6 +114,22 @@ const SAMPLE_HZ = 12;
 const PUBLISH_EVERY = 3; // publish readouts at 4Hz; paint at 12
 const TRIP_RUN = 4; // consecutive readings required before firing
 
+/**
+ * Floor on how often a model may run, and the ceiling on how long a reading is
+ * allowed to be the newest one.
+ *
+ * The first stops a moving scene from asking for inference faster than the model
+ * can answer. The second means the count is refreshed even when the frame is
+ * perfectly still, so a reading on screen is never older than a second and a
+ * half without saying so.
+ */
+const DETECT_EVERY_MS = 400;
+const DETECT_STALE_MS = 1500;
+/** Movement in the region worth spending an inference on. */
+const MOTION_FLOOR = 0.012;
+/** Detection score floor. Below this a hit is noise, not a bottle. */
+const MIN_SCORE = 0.3;
+
 const INK = "#0a0a0a";
 const PAPER = "#f5f3ec";
 const SIGNAL = "#ff5a3c";
@@ -94,14 +142,16 @@ export interface Perception {
   /** Capture the current frame as the reference the region is compared against. */
   setReference(): void;
   clearReference(): void;
+  /** Swap the detector without restarting the camera or losing the reference. */
+  setDetector(id: DetectorId): void;
+  /** Change what the model detectors are looking for. */
+  setTarget(target: string): void;
   /** Simulated mode only. Take a jar off the shelf. */
   removeStock(): void;
   restock(): void;
   /** Arm the auto-fire. Disarmed, a trip is reported but nothing is submitted. */
   setArmed(armed: boolean): void;
   latest(): Sample | null;
-  /** The video element, when the camera is the source. */
-  video(): HTMLVideoElement | null;
 }
 
 export function createPerception(options: PerceptionOptions): Perception {
@@ -109,6 +159,12 @@ export function createPerception(options: PerceptionOptions): Perception {
   const sceneCanvas = document.createElement("canvas");
   sceneCanvas.width = 320;
   sceneCanvas.height = 240;
+  // The crop handed to the model. Small on purpose: the watched band of a 640px
+  // frame, not the frame. Less to encode, less to infer over, and the model is
+  // never asked about pixels the region excludes.
+  const cropCanvas = document.createElement("canvas");
+  cropCanvas.width = 320;
+  cropCanvas.height = 240;
 
   let video: HTMLVideoElement | null = null;
   let stream: MediaStream | null = null;
@@ -126,10 +182,47 @@ export function createPerception(options: PerceptionOptions): Perception {
   let tripped = false;
   let armed = false;
 
+  let detectorId: DetectorId = options.detector;
+  let target = options.target;
+  let lastOfferAt = 0;
+  // The newest thing a model said. Held across frames because inference is
+  // slower than the loop: between answers, the count on screen is the last real
+  // one, and `at` is what lets the panel say how old that is.
+  let modelCount: number | null = null;
+  let modelBoxes: readonly Box[] = [];
+  let modelBest = 0;
+  let modelLatency: number | null = null;
+  let modelAt = 0;
+
   const decisionCells = regionIndices(
-    { w: CHAIN.decision.w, h: CHAIN.decision.h, lum: new Float32Array(CHAIN.decision.w * CHAIN.decision.h) },
+    {
+      w: CHAIN.decision.w,
+      h: CHAIN.decision.h,
+      lum: new Float32Array(CHAIN.decision.w * CHAIN.decision.h),
+    },
     options.region,
   );
+
+  const detector: DetectorClient = createDetectorClient({
+    onState: (state) => {
+      // A model that fell over stops being believed immediately. The reading
+      // reverts to the screen's own number rather than freezing on the last
+      // count, which would keep showing a confident answer from a dead model.
+      if (state.phase !== "ready") {
+        modelCount = null;
+        modelBoxes = [];
+        modelLatency = null;
+      }
+      options.onDetector(state);
+    },
+    onReading: (reading) => {
+      modelCount = reading.count;
+      modelBoxes = reading.boxes;
+      modelBest = reading.best;
+      modelLatency = reading.latencyMs;
+      modelAt = Date.now();
+    },
+  });
 
   function paintTo(rung: ChainRung | "hero", grid: Grid, mode: ScreenMode, showRegion: boolean) {
     const canvas = canvases.get(rung);
@@ -155,6 +248,46 @@ export function createPerception(options: PerceptionOptions): Perception {
       gap: rung === "decision" ? Math.max(1, Math.round(dpr)) : 0,
       ...(showRegion ? { region: options.region, regionInk: SIGNAL } : {}),
     });
+  }
+
+  /** The watched region, cropped out at source scale and handed to the worker. */
+  function offerCrop(drawable: CanvasImageSource): void {
+    const [rx, ry, rw, rh] = options.region;
+    // Read the size off the source, never off the crop canvas. The crop canvas
+    // is resized to hold the result, so using it as the source dimension makes
+    // every frame a crop of the previous crop and the region walks off the
+    // subject within a second.
+    const sw = drawable instanceof HTMLVideoElement ? drawable.videoWidth : sceneCanvas.width;
+    const sh = drawable instanceof HTMLVideoElement ? drawable.videoHeight : sceneCanvas.height;
+    if (!sw || !sh) return;
+
+    const cw = Math.max(32, Math.round(rw * sw));
+    const ch = Math.max(32, Math.round(rh * sh));
+    if (cropCanvas.width !== cw || cropCanvas.height !== ch) {
+      cropCanvas.width = cw;
+      cropCanvas.height = ch;
+    }
+    const ctx = cropCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(
+      drawable,
+      Math.round(rx * sw),
+      Math.round(ry * sh),
+      Math.round(rw * sw),
+      Math.round(rh * sh),
+      0,
+      0,
+      cw,
+      ch,
+    );
+
+    void createImageBitmap(cropCanvas)
+      .then((bitmap) => detector.offer(bitmap, target, MIN_SCORE))
+      .catch(() => {
+        // A frame that could not be encoded is not worth reporting: the next one
+        // is 400ms away. A detector that cannot encode *any* frame shows up as a
+        // count that never arrives, which the panel already says out loud.
+      });
   }
 
   function step() {
@@ -189,28 +322,66 @@ export function createPerception(options: PerceptionOptions): Perception {
     );
 
     const drift = reference ? divergence(decision, reference, decisionCells) : 0;
-    const low = Boolean(reference) && drift >= options.threshold;
+    const modelled = DETECTORS[detectorId].kind === "model";
+    const now = Date.now();
+
+    // ─── stage 0: is an inference worth running? ────────────────────────────
+    if (modelled && now - lastOfferAt >= DETECT_EVERY_MS) {
+      const moved = !reference || drift >= MOTION_FLOOR;
+      const stale = now - modelAt >= DETECT_STALE_MS;
+      if (moved || stale) {
+        lastOfferAt = now;
+        offerCrop(drawable);
+      }
+    }
+
+    // ─── stage 1: what does the reading say? ────────────────────────────────
+    const fresh = modelled && modelCount !== null;
+    const count = fresh ? modelCount : null;
+    const low = fresh
+      ? (count as number) < options.lowAt
+      : Boolean(reference) && drift >= options.threshold;
+
     // Confidence is distance from the decision boundary, not a flattering
-    // constant. A reading that lands on the threshold is genuinely uncertain,
-    // and the pipeline's own confidence floor will refuse it. That is the
-    // system working.
-    const confidence = reference
-      ? Math.max(0.05, Math.min(0.99, 0.5 + Math.abs(drift - options.threshold) * 2.4))
-      : 0.05;
-    const implied = Math.max(
-      0,
-      Math.min(FULL_STOCK, Math.round(FULL_STOCK * (1 - drift / Math.max(0.01, options.threshold * 1.6)))),
-    );
+    // constant. A reading that lands on the boundary is genuinely uncertain, and
+    // the pipeline's own confidence floor will refuse it. That is the system
+    // working, and it is worth watching happen.
+    let confidence: number;
+    if (fresh) {
+      const margin = Math.abs((count as number) - (options.lowAt - 0.5)) / options.lowAt;
+      // A model that found nothing has no score to report, so the count carries
+      // the whole claim and the score cannot inflate it.
+      const scored = (count as number) > 0 ? modelBest : 0.6;
+      confidence = Math.max(0.05, Math.min(0.99, 0.45 + margin * 0.35 + scored * 0.25));
+    } else if (reference) {
+      confidence = Math.max(0.05, Math.min(0.99, 0.5 + Math.abs(drift - options.threshold) * 2.4));
+    } else {
+      confidence = 0.05;
+    }
+
+    const basis = fresh
+      ? `${DETECTORS[detectorId].model ?? detectorId}: ${count} ${target} at score >= ${MIN_SCORE}${
+          modelLatency === null ? "" : `, ${modelLatency}ms`
+        }`
+      : `screen: divergence ${drift.toFixed(3)} against ${options.threshold.toFixed(2)} over ${decisionCells.length} cells`;
 
     const next: Sample = {
-      at: Date.now(),
+      at: now,
+      detector: detectorId,
       divergence: drift,
+      count,
       confidence,
       hash: frameHash(decision, decisionCells),
-      stock: implied,
-      signal: low ? "olive_oil.stock < 3" : `olive_oil.stock = ${implied}`,
+      boxes: fresh ? modelBoxes : [],
+      signal: low
+        ? "olive_oil.stock < 3"
+        : fresh
+          ? `olive_oil.stock = ${count}`
+          : "olive_oil.stock nominal",
+      basis,
       low,
-      referenced: Boolean(reference),
+      referenced: modelled ? true : Boolean(reference),
+      latencyMs: fresh ? modelLatency : null,
     };
     sample = next;
 
@@ -277,6 +448,7 @@ export function createPerception(options: PerceptionOptions): Perception {
       }
 
       timer = window.setInterval(step, Math.round(1000 / SAMPLE_HZ));
+      if (DETECTORS[detectorId].kind === "model") detector.select(detectorId);
 
       if (source === "simulated") {
         // The authored scene starts full, so its reference is free.
@@ -303,6 +475,7 @@ export function createPerception(options: PerceptionOptions): Perception {
       stream?.getTracks().forEach((track) => track.stop());
       stream = null;
       video = null;
+      detector.dispose();
       options.onStatus("stopped", null);
     },
 
@@ -316,8 +489,7 @@ export function createPerception(options: PerceptionOptions): Perception {
     },
 
     setReference() {
-      const drawable =
-        source === "camera" && video && video.readyState >= 2 ? video : sceneCanvas;
+      const drawable = source === "camera" && video && video.readyState >= 2 ? video : sceneCanvas;
       reference = reduce(
         toGrid(drawable, scratch, CHAIN.optical.w, CHAIN.optical.h),
         CHAIN.decision.w,
@@ -329,6 +501,32 @@ export function createPerception(options: PerceptionOptions): Perception {
 
     clearReference() {
       reference = null;
+      run = 0;
+      tripped = false;
+    },
+
+    setDetector(id) {
+      if (id === detectorId) return;
+      detectorId = id;
+      modelCount = null;
+      modelBoxes = [];
+      modelLatency = null;
+      modelAt = 0;
+      run = 0;
+      tripped = false;
+      detector.select(id);
+    },
+
+    setTarget(next) {
+      const trimmed = next.trim();
+      if (!trimmed || trimmed === target) return;
+      target = trimmed;
+      // The previous count answered a different question. Holding it while the
+      // panel showed the new label would be the surface lying about what it
+      // measured.
+      modelCount = null;
+      modelBoxes = [];
+      modelAt = 0;
       run = 0;
       tripped = false;
     },
@@ -345,15 +543,18 @@ export function createPerception(options: PerceptionOptions): Perception {
 
     setArmed(next) {
       armed = next;
-      if (!next) tripped = false;
+      // Arming means "fire on the next qualifying run", so the latch is cleared
+      // in both directions. Clearing it only on disarm was a real trap: a model
+      // detector reports low from the moment it loads, so the latch was already
+      // set before the operator could reach the button, and arming produced a
+      // control that looked live and would never fire. Requiring a fresh run of
+      // TRIP_RUN readings after arming is also the honest reading of the word.
+      run = 0;
+      tripped = false;
     },
 
     latest() {
       return sample;
-    },
-
-    video() {
-      return video;
     },
   };
 }

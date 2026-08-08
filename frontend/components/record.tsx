@@ -30,7 +30,10 @@ const WEIGHT: Record<string, string> = {
  * holding, and it gets said that way. A probe that is NOT declined is the real
  * alarm, and only that one gets the hatch.
  */
-function markFor(event: FeedEvent): { label: string; weight: "ink" | "quiet" | "permit" | "refuse" } {
+function markFor(event: FeedEvent): {
+  label: string;
+  weight: "ink" | "quiet" | "permit" | "refuse";
+} {
   if (event.signal?.startsWith("probe:")) {
     return event.stage === "rejected"
       ? { label: "bounds held", weight: "ink" }
@@ -59,6 +62,19 @@ function detailFor(event: FeedEvent): string | null {
       : event.signal;
   }
   return event.detail;
+}
+
+/**
+ * The row that answers "how do you know?".
+ *
+ * Perception states which detector ran, what it counted, and at what score. It
+ * is printed once, on the row where the reading entered, and in the quiet tone:
+ * it is the provenance of the number above it, not a second claim. Every later
+ * stage inherits the same reading, so repeating it down the strip would just be
+ * noise pretending to be corroboration.
+ */
+function basisFor(event: FeedEvent): string | null {
+  return event.stage === "observed" ? event.basis : null;
 }
 
 export function Record({
@@ -103,9 +119,9 @@ export function Record({
           <div className="p-4">
             <h3 className="bit bit-16">nothing observed</h3>
             <Note className="mt-2">
-              The source is watching but has not been asked for anything yet. Submit a reading
-              from the sight panel and every stage the pipeline runs will be struck here, whether
-              it ends in a payment or in a refusal.
+              The source is watching but has not been asked for anything yet. Submit a reading from
+              the sight panel and every stage the pipeline runs will be struck here, whether it ends
+              in a payment or in a refusal.
             </Note>
           </div>
         ) : (
@@ -113,6 +129,7 @@ export function Record({
             {ordered.map((event) => {
               const meta = markFor(event);
               const detail = detailFor(event);
+              const basis = basisFor(event);
               return (
                 <li
                   key={event.id}
@@ -131,13 +148,20 @@ export function Record({
                   >
                     {meta.label}
                   </span>
-                  <span
-                    className={cx(
-                      "datum min-w-0 flex-1 pt-[3px] break-all",
-                      meta.weight === "quiet" ? "text-ink-3" : "text-ink-2",
-                    )}
-                  >
-                    {detail}
+                  <span className="min-w-0 flex-1 pt-[3px]">
+                    <span
+                      className={cx(
+                        "datum block break-all",
+                        meta.weight === "quiet" ? "text-ink-3" : "text-ink-2",
+                      )}
+                    >
+                      {detail}
+                    </span>
+                    {basis ? (
+                      <span className="datum mt-[2px] block text-[10px] break-all text-ink-3">
+                        {basis}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               );
@@ -152,7 +176,9 @@ export function Record({
           <div className="flex items-baseline justify-between gap-3 px-3 py-[10px]">
             <span className="label">no instrument yet</span>
             {cardsMinted !== null ? (
-              <span className="datum text-[11px] text-ink-3">{cardsMinted} minted this session</span>
+              <span className="datum text-[11px] text-ink-3">
+                {cardsMinted} minted this session
+              </span>
             ) : null}
           </div>
         ) : result.ok ? (
@@ -191,7 +217,8 @@ export function Record({
                 test the card bounds
               </Button>
               <span className="datum flex-1 text-[10px] text-ink-3">
-                {probeNote ?? "sends a real authorization at a category this card is not scoped to."}
+                {probeNote ??
+                  "sends a real authorization at a category this card is not scoped to."}
               </span>
             </div>
           </div>

@@ -15,6 +15,36 @@ const nextConfig: NextConfig = {
    */
   serverExternalPackages: ["viem"],
 
+  /**
+   * transformers.js ships a Node build alongside the web one, and its Node build
+   * pulls in `onnxruntime-node` and `sharp`, both of which are native modules
+   * that cannot exist in a browser bundle.
+   *
+   * The package's own export conditions already resolve to the web build for a
+   * browser target, so this is belt and braces rather than load-bearing. It is
+   * here because the failure it prevents is a build error in the detector worker
+   * with a stack trace that points at neither the worker nor the detector, and
+   * finding that under time pressure is not a good evening.
+   */
+  turbopack: {
+    resolveAlias: {
+      "onnxruntime-node": { browser: "./lib/detect/unavailable.ts" },
+      sharp: { browser: "./lib/detect/unavailable.ts" },
+    },
+  },
+
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve = config.resolve ?? {};
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "onnxruntime-node": false,
+        sharp: false,
+      };
+    }
+    return config;
+  },
+
   typescript: {
     // The repo is typechecked as a whole by `bun run typecheck` at the root,
     // which has the correct project config for the workspace packages. Next's

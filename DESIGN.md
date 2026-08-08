@@ -101,6 +101,19 @@ midtone lands at half coverage, half coverage on a square-dot screen is a checke
 frame of midtones reads as noise instead of as a subject. This is the single change that made the
 hero legible; do not remove it.
 
+**The detector sits at the end of the chain, not instead of it.** A model can now be swapped in to
+turn the watched region into a count, and the reduction stays on screen when it is: the chain is
+what the model is handed, and the caption changes from "the ruling turns on 108 values" to "then
+Xenova/yolos-tiny" so the sheet always names the rung the ruling actually turned on. Detections are
+drawn over the hero as hollow accent boxes with the score set into a filled tab. Hollow, because a
+solid box would hide the pixels the count is a claim about.
+
+Every claim the detector cannot make is written as absence rather than as a plausible number: the
+screen detector reports "not counted", not an implied stock figure. A model that is downloading, has
+failed, or is running on a slower backend says so in words, with the megabytes and the backend
+named. This is the same rule as the allow/deny materials: the interface states the mechanism and
+names the limit, and never renders a confident value it did not measure.
+
 ## Composition
 
 Three columns on `lg` and up, in a fixed-height console that does not scroll the page: **the sight**
@@ -110,6 +123,12 @@ unconstrained column collapses to zero height.
 
 The gate's two destructive controls are anchored to the base of their column with `mt-auto`, so they
 sit in the same place whatever the panel above happens to be saying.
+
+The sight follows the same rule, in the form its own content forced. The frame holds `lg:h-[40%]`,
+everything explanatory below it scrolls as one block, and the control row is pinned outside that
+scroll against the base of the panel. The operator drives this with one hand while talking, so the
+primary action must never move; adding the detector section to an already-full column is what made
+that explicit rather than incidental.
 
 ## The scene this was designed for
 

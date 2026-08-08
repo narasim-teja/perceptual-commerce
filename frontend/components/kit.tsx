@@ -144,11 +144,15 @@ export function Datum({
     <div className="flex items-baseline gap-2 py-[5px]">
       <span className="label shrink-0">{label}</span>
       <span className="min-w-[8px] flex-1 translate-y-[-3px] border-b border-dashed border-paper-3" />
+      {/* `min-w-0` rather than `shrink-0`. A value long enough to outrun its
+          column (a 36-character transaction id in a half-width cell) cannot
+          shrink when it is pinned, so `break-all` never gets a chance and the
+          text runs out over whatever sits beside it. Shrinkable, it wraps inside
+          its own cell instead. The leader's basis is 0, so it gives up nothing
+          here: the value takes the whole shrink and short values still sit hard
+          right against a full-length leader. */}
       <span
-        className={cx(
-          "datum shrink-0 text-right break-all",
-          emphasis ? "text-ink" : "text-ink-2",
-        )}
+        className={cx("datum min-w-0 text-right break-all", emphasis ? "text-ink" : "text-ink-2")}
       >
         {children}
       </span>
@@ -184,13 +188,7 @@ export function Meter({
             className={cx(
               "flex-1 transition-[height,background-color] duration-100 ease-out",
               isMark ? "h-6" : isOn ? "h-4" : "h-[6px]",
-              isMark
-                ? "bg-ink"
-                : isOn
-                  ? over
-                    ? "bg-signal"
-                    : "bg-ink"
-                  : "bg-paper-3",
+              isMark ? "bg-ink" : isOn ? (over ? "bg-signal" : "bg-ink") : "bg-paper-3",
             )}
           />
         );
@@ -236,9 +234,7 @@ export function Stamp({
    cannot do, and why an empty panel is empty. */
 
 export function Note({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <p className={cx("text-[12px] leading-[1.5] text-ink-3", className)}>{children}</p>
-  );
+  return <p className={cx("text-[12px] leading-[1.5] text-ink-3", className)}>{children}</p>;
 }
 
 export { cx };

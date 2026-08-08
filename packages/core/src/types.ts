@@ -23,6 +23,16 @@ export interface TriggerContext {
   readonly confidence: number;
   /** Frame hash / CID / anything that makes the ruling auditable after the fact. */
   readonly evidence?: string;
+  /**
+   * How the source arrived at the signal, in its own words.
+   *
+   * Deliberately outside the IntentId preimage. A detector that reports "3
+   * bottles at 0.41" writes a different basis on every frame, and folding that
+   * into the id would give every frame its own intent, which is exactly the
+   * duplicate-mint failure `deriveIntentId` exists to prevent. The predicate is
+   * what identifies the intent; the basis is what explains it afterwards.
+   */
+  readonly basis?: string;
 }
 
 export interface PayeeRef {
