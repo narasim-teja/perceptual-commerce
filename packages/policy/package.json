@@ -1,0 +1,18 @@
+{
+  "name": "@pc/policy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Monad plane: the onchain mint-gate contract and the viem client that reads/writes it. Fail-closed.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "forge build --root contract",
+    "test": "forge test --root contract -vv"
+  },
+  "dependencies": {
+    "@pc/core": "workspace:*",
+    "viem": "^2.40.2"
+  }
+}
