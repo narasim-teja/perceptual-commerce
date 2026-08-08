@@ -1,0 +1,13 @@
+{
+  "name": "@pc/perception",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pluggable signal sources. Emits observations; can never spend.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@pc/core": "workspace:*"
+  }
+}
