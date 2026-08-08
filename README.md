@@ -72,7 +72,7 @@ The camera is the hook. The authorization spine is the substance.
 | Language | TypeScript, `strict`, ESM only |
 | Onchain | Solidity + Foundry, `viem` for reads/writes |
 | Validation | `zod` at every external boundary |
-| Server | Hono |
+| Web | Next.js (App Router), Tailwind, shadcn/ui |
 
 ## Layout
 
@@ -84,6 +84,7 @@ packages/
   policy/       the onchain plane: Policy.sol + the viem client
   settlement/   pluggable rails
   app/          the reference demo, wiring the three planes together
+frontend/       Next.js dashboard — the demo control surface
 scripts/        deploy and inspect the policy contract
 ```
 
@@ -98,6 +99,13 @@ cp .env.example .env        # fill in credentials
 bun test                    # unit tests
 bun run contract:test       # Foundry tests
 bun run typecheck
+```
+
+Running it:
+
+```bash
+bun run web                 # dashboard at http://localhost:3000
+bun run demo                # or the same loop as a CLI
 ```
 
 Deploying the policy contract:

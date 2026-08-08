@@ -5,7 +5,8 @@
   "type": "module",
   "description": "The perception layer for agentic commerce: perceive a real-world condition, gate it fail-closed onchain, spend inside bounds.",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "frontend"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -24,7 +25,9 @@
     "policy:balance": "bun run scripts/policy.ts balance",
     "policy:deploy:dry": "bun run scripts/policy.ts deploy --dry",
     "policy:deploy": "bun run scripts/policy.ts deploy",
-    "policy:state": "bun run scripts/policy.ts state"
+    "policy:state": "bun run scripts/policy.ts state",
+    "web": "bun run --cwd frontend dev",
+    "demo": "bun run packages/app/src/restock.ts"
   },
   "dependencies": {
     "@pc/core": "workspace:*",
