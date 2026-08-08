@@ -7,9 +7,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { authorize, withTimeout } from "./authorize.ts";
-import { cents } from "./amount.ts";
-import type { Authorization, IntentId, PolicyPlane, SpendIntent } from "./types.ts";
+import { authorize, withTimeout } from "../authorize.ts";
+import { cents } from "../amount.ts";
+import type { Authorization, IntentId, PolicyPlane, SpendIntent } from "../types.ts";
 
 const NOW = 1_770_000_000_000; // fixed clock; no wall-clock flakiness
 const now = () => NOW;

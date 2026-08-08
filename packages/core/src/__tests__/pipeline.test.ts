@@ -6,10 +6,10 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { cents } from "./amount.ts";
-import { watch, type ObservationSource, type PipelineEvent, type PipelineObservation } from "./pipeline.ts";
-import { memoryDedupeStore } from "./idempotency.ts";
-import type { Authorization, PolicyPlane, Receipt, SettlementRail, SpendIntent } from "./types.ts";
+import { cents } from "../amount.ts";
+import { watch, type ObservationSource, type PipelineEvent, type PipelineObservation } from "../pipeline.ts";
+import { memoryDedupeStore } from "../idempotency.ts";
+import type { Authorization, PolicyPlane, Receipt, SettlementRail, SpendIntent } from "../types.ts";
 
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
 

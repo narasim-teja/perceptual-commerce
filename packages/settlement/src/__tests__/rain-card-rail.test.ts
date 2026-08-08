@@ -10,10 +10,10 @@
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import { cents, type Authorization, type IntentId, type SpendIntent } from "@pc/core";
-import { rainClient } from "./client.ts";
-import { fakeRainServer, type FakeRainServer } from "./fixtures.ts";
-import { probeWrongCategory, rainCardRail } from "./rain-card-rail.ts";
-import { getCard } from "./cards.ts";
+import { rainClient } from "../rain/client.ts";
+import { fakeRainServer, type FakeRainServer } from "../rain/fixtures.ts";
+import { probeWrongCategory, rainCardRail } from "../rain/rain-card-rail.ts";
+import { getCard } from "../rain/cards.ts";
 
 const NOW = Date.now();
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
@@ -110,7 +110,7 @@ describe("the happy path", () => {
     // This is the real proof that decrypt.ts is correct: the fake encrypts with
     // Rain's algorithm and we recover it with ours.
     const { client } = makeRail();
-    const { mintScopedCard } = await import("./cards.ts");
+    const { mintScopedCard } = await import("../rain/cards.ts");
     const minted = await mintScopedCard(client, server.pem, {
       amount: cents(4299),
       allowedMccs: ["5411"],
