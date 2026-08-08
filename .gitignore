@@ -36,6 +36,11 @@ packages/policy/contract/lib/
 .scratch/
 spikes/.out/
 
+# --- design tooling scratch ---------------------------------------------------
+# Working state for the design skill: reference boards, sketches, live config.
+# PRODUCT.md and DESIGN.md are the durable artifacts and stay tracked.
+.impeccable/
+
 # --- os / editor --------------------------------------------------------------
 .DS_Store
 Thumbs.db
