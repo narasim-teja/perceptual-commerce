@@ -1,0 +1,44 @@
+# --- planning / private notes -------------------------------------------------
+# The whole docs/ tree is intentionally untracked (product notes, positioning,
+# API feedback log). If you ever want to publish the Rain feedback artifact,
+# add `!docs/FEEDBACK.md` below.
+docs/
+
+# --- secrets ------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# Every .pem is ignored by default. The ONLY exception is `keys/*.pub.pem`,
+# which by construction can hold nothing but public keys. See keys/README.md.
+*.pem
+!keys/*.pub.pem
+
+# --- js / bun -----------------------------------------------------------------
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.next/
+out/
+coverage/
+bun.lockb.bak
+
+# --- foundry ------------------------------------------------------------------
+packages/policy/contract/out/
+packages/policy/contract/cache/
+packages/policy/contract/broadcast/
+packages/policy/contract/.forge-snapshots/
+# forge-std is vendored, not a submodule. Restore it with `bun run contract:deps`.
+packages/policy/contract/lib/
+
+# --- local spike scratch ------------------------------------------------------
+.scratch/
+spikes/.out/
+
+# --- os / editor --------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
