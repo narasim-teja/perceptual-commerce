@@ -1,13 +1,9 @@
 /** Client-side view of what the route handlers return. */
 
+import type { DetectorId } from "./detect/spec";
+
 export type Stage =
-  | "observed"
-  | "filtered"
-  | "proposed"
-  | "verified"
-  | "authorized"
-  | "settled"
-  | "rejected";
+  "observed" | "filtered" | "proposed" | "verified" | "authorized" | "settled" | "rejected";
 
 export interface FeedEvent {
   id: number;
@@ -17,6 +13,8 @@ export interface FeedEvent {
   intentId: string | null;
   signal: string | null;
   confidence: number | null;
+  /** How perception reached the signal. Null when the source did not explain itself. */
+  basis: string | null;
   amount: number | null;
   payee: string | null;
   mcc: string | null;
@@ -50,7 +48,13 @@ export interface Receipt {
 export interface Status {
   config: Record<string, string>;
   rail: "fake" | "rain";
-  perception: { mode: "simulated" | "camera"; threshold: number };
+  perception: {
+    mode: "simulated" | "camera";
+    threshold: number;
+    detector: DetectorId;
+    target: string;
+    lowAt: number;
+  };
   payee: { id: string; name: string; mcc: string; amount: number };
   explorerBase: string;
   cardsMinted: number | null;
@@ -61,14 +65,21 @@ export interface Status {
 }
 
 export type TriggerResult =
-  | { ok: true; receipt: Receipt }
-  | { ok: false; error?: string; kind?: string; outcome?: string };
+  { ok: true; receipt: Receipt } | { ok: false; error?: string; kind?: string; outcome?: string };
 
-/** What perception hands over. Note what is absent: anything that could spend. */
+/**
+ * What perception hands over. Note what is absent: anything that could spend.
+ *
+ * No amount, no payee, no card, no contract. The server reads those from its own
+ * config and the chain rules on them. A lying client can misreport the world,
+ * which this design accepts, but it cannot change what a reading is worth.
+ */
 export interface ObservationPayload {
   signal: string;
   confidence: number;
   evidence: string;
+  /** How the reading was reached. Rendered in the record next to the intent. */
+  basis: string;
 }
 
 export async function getStatus(): Promise<Status> {
