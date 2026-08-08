@@ -1,0 +1,22 @@
+{
+  "name": "@pc/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The reference demo: restock. Composes perception + policy + settlement into the loop.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "demo": "bun run src/restock.ts"
+  },
+  "dependencies": {
+    "@pc/core": "workspace:*",
+    "@pc/perception": "workspace:*",
+    "@pc/policy": "workspace:*",
+    "@pc/settlement": "workspace:*",
+    "hono": "^4.10.7",
+    "zod": "^4.1.13"
+  }
+}
