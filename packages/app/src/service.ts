@@ -31,6 +31,8 @@ export interface FeedEvent {
   readonly intentId: string | null;
   readonly signal: string | null;
   readonly confidence: number | null;
+  /** How perception reached the signal. Present only when the source explained itself. */
+  readonly basis: string | null;
   readonly amount: number | null;
   readonly payee: string | null;
   readonly mcc: string | null;
@@ -103,6 +105,7 @@ export function getService(): Service {
         intentId: null,
         signal: `probe: MCC ${config.DEMO_WRONG_MCC}`,
         confidence: null,
+        basis: "issuer-side simulation, none of our code in the path",
         amount: null,
         payee: null,
         mcc: config.DEMO_WRONG_MCC,
@@ -139,6 +142,7 @@ function toFeedEvent(event: PipelineEvent, id: number): FeedEvent {
     intentId: event.intent?.id ?? null,
     signal: event.intent?.trigger.signal ?? event.observation?.signal ?? null,
     confidence: event.intent?.trigger.confidence ?? event.observation?.confidence ?? null,
+    basis: event.intent?.trigger.basis ?? event.observation?.basis ?? null,
     amount: event.intent?.proposal.amount ?? null,
     payee: event.intent?.proposal.payee.name ?? null,
     mcc: event.intent?.proposal.payee.mcc ?? null,
@@ -218,7 +222,9 @@ export async function setKillSwitch(active: boolean): Promise<{ tx: string; bloc
 
 // ─── what the UI asks for ─────────────────────────────────────────────────────
 
-export async function trigger(over: { signal?: string; confidence?: number; evidence?: string } = {}) {
+export async function trigger(
+  over: { signal?: string; confidence?: number; evidence?: string; basis?: string } = {},
+) {
   const { loop } = getService();
   const result = await loop.trigger(over);
   if (!result) return { ok: false as const, outcome: "no intent produced" };
@@ -233,10 +239,15 @@ export function snapshot() {
     config: describeConfig(service.config),
     rail: service.config.RAIL,
     // The browser owns the perception plane, so it has to be told which source
-    // to open and what threshold the operator configured.
+    // to open, which detector to start on, and what the operator configured.
+    // None of this is authority: it is the shape of the observation the server
+    // is willing to listen to, not permission to spend.
     perception: {
       mode: service.config.PERCEPTION_MODE,
       threshold: service.config.PERCEPTION_THRESHOLD,
+      detector: service.config.PERCEPTION_DETECTOR,
+      target: service.config.PERCEPTION_TARGET,
+      lowAt: service.config.PERCEPTION_LOW_AT,
     },
     payee: {
       id: service.config.DEMO_PAYEE_ID,

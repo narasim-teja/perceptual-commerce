@@ -113,6 +113,24 @@ const schema = z.object({
    * shelf is small in frame.
    */
   PERCEPTION_THRESHOLD: z.coerce.number().min(0.01).max(0.99).default(0.32),
+  /**
+   * Which detector turns the watched region into a reading.
+   *
+   * `screen` compares the region against a reference frame and needs no model,
+   * no download and no network. `objects` runs a COCO detector in a worker and
+   * counts named instances. `open-vocab` runs an open-vocabulary detector and
+   * counts whatever phrase you type. All three emit the identical observation,
+   * so this selects the source and never the spine: the pipeline, the gate and
+   * the rail cannot tell which one produced the reading.
+   *
+   * This is the starting choice only. The operator can switch detectors live
+   * from the console, because on stage the right answer depends on the light.
+   */
+  PERCEPTION_DETECTOR: z.enum(["screen", "objects", "open-vocab"]).default("screen"),
+  /** What the model detectors count. A COCO class for `objects`, any phrase for `open-vocab`. */
+  PERCEPTION_TARGET: z.string().min(1).default("bottle"),
+  /** Instances at or below this count read as low stock. Matches the demo predicate. */
+  PERCEPTION_LOW_AT: z.coerce.number().int().min(1).max(50).default(3),
 
   // ─── Behaviour ────────────────────────────────────────────────────────────
   /** `fake` runs against fixtures.ts: no network, no cards. Default, on purpose. */
@@ -215,7 +233,7 @@ export function resetConfig(): void {
 export function describeConfig(config: Config): Record<string, string> {
   return {
     rail: config.RAIL,
-    perception: `${config.PERCEPTION_MODE} (threshold ${config.PERCEPTION_THRESHOLD})`,
+    perception: `${config.PERCEPTION_MODE} / ${config.PERCEPTION_DETECTOR}`,
     rainBaseUrl: config.RAIN_BASE_URL,
     rainUserId: config.RAIN_USER_ID,
     monadRpc: config.MONAD_RPC_URL,
