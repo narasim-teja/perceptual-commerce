@@ -75,7 +75,10 @@ inside this world would give the whole sheet away.
 - **Panel** — ruled block, `--paper-2` head with a `.bit-16` caption and an optional status chip.
 - **Button** — flat at rest; hover lifts it onto a 4px hard ink block; press puts it back down. One
   physical idea, three states. Disabled clears both the hatch and the shadow, so an unavailable
-  danger control does not read as an active alarm.
+  danger control does not read as an active alarm. Three sizes, and `sm` is not a free choice: it
+  carries the Segmented's exact metrics, so a control standing in a panel head leaves that head the
+  height it already was. The three columns share one top rule, and a head that grows by ten pixels
+  breaks the alignment the whole console is read against.
 - **Segmented** — selection inverts to solid ink. No accent: selection is not an alarm.
 - **Datum** — `.label` left, dashed leader, `.datum` value right.
 - **Meter** — run of cells filled to value, with a full-height tick standing at the threshold.
@@ -101,12 +104,30 @@ midtone lands at half coverage, half coverage on a square-dot screen is a checke
 frame of midtones reads as noise instead of as a subject. This is the single change that made the
 hero legible; do not remove it.
 
-**The detector sits at the end of the chain, not instead of it.** A model can now be swapped in to
-turn the watched region into a count, and the reduction stays on screen when it is: the chain is
-what the model is handed, and the caption changes from "the ruling turns on 108 values" to "then
-Xenova/yolos-tiny" so the sheet always names the rung the ruling actually turned on. Detections are
+**The detector sits beside the chain, not at the end of it.** A model can be swapped in to turn the
+watched region into a count, and the reduction stays on screen when it is, but the reduction is not
+what the model is handed. The model reads a crop of the watched region at source resolution, because
+a detector given a 12×9 bitmap would find nothing. What the chain does while a model runs is produce
+the frame hash that travels with the intent as evidence, and gate inference once a reference exists.
+
+The caption says exactly that: `Xenova/yolos-tiny reads the region, not this`. It used to say `then
+Xenova/yolos-tiny`, which read like an arrow from the strip into the model, and that is a mechanism
+the code does not implement. Naming the wrong mechanism does not get an exemption for being
+flattering, and a caption is where a judge checks. Detections are
 drawn over the hero as hollow accent boxes with the score set into a filled tab. Hollow, because a
 solid box would hide the pixels the count is a claim about.
+
+**The chain strip is the frame's control, not a caption under one.** Pressing a rung fills the hero
+with it, and the pressed thumbnail inverts to solid ink like every other selection on the sheet.
+There used to be a second picker in the panel head printing the same four words at the strip, so the
+surface asked which rung you wanted twice and answered in two places; that is what made the panel
+read as five views of one frame. One question, asked where the answer is visible. The decision grid
+became legible at poster scale as a side effect, which is the rung most worth looking at.
+
+There is one control over the source and it is honest about what off means: no controller exists,
+the camera tracks are stopped, the device indicator goes out, and the readout reverts to reading
+nothing rather than holding the last number it measured. A stopped source outranks every other
+blocking state in the frame, because none of them are true while nothing is running.
 
 Every claim the detector cannot make is written as absence rather than as a plausible number: the
 screen detector reports "not counted", not an implied stock figure. A model that is downloading, has
@@ -129,6 +150,16 @@ everything explanatory below it scrolls as one block, and the control row is pin
 scroll against the base of the panel. The operator drives this with one hand while talking, so the
 primary action must never move; adding the detector section to an already-full column is what made
 that explicit rather than incidental.
+
+Inside that scroll the order is the reading order: the chain strip sits against the frame because it
+is the frame's picker, then the number, then the mechanism that produced it. The room is reading the
+number, and how it was reached is the answer to the lean-in question, which comes second.
+
+One more accent rule, learned from the built surface. The `n found` mark over the frame is ink until
+the reading is one that would fire, and only then the accent. A count of nothing printed in the
+accent read as a fault in the panel rather than as a shelf that needs restocking, which is the
+opposite of what the mark is for. Before a model has answered at all, the mark says so instead of
+printing a zero it has not measured.
 
 ## The scene this was designed for
 
