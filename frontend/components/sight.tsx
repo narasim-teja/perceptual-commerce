@@ -122,6 +122,23 @@ export function Sight({
   const [armed, setArmed] = useState(false);
   const [picked, setPicked] = useState<DetectorId>(detector);
   const [phrase, setPhrase] = useState(target);
+
+  // The server's choice arrives on the first status poll, after this component
+  // has already mounted on the fallback. Seeded once and left alone, these two
+  // would keep describing the detector the panel guessed rather than the one the
+  // controller is actually running: the segmented control reading `screen` and
+  // `no model, nothing downloaded` while a model posts real counts underneath it.
+  // The panel narrating a different mechanism than the one that produced the
+  // number is the one failure this surface cannot have.
+  //
+  // Safe against the 8s poll: these are strings off a config that does not
+  // change during a session, so a live swap by the operator is not clobbered.
+  useEffect(() => {
+    setPicked(detector);
+  }, [detector]);
+  useEffect(() => {
+    setPhrase(target);
+  }, [target]);
   const [detectorState, setDetectorState] = useState<DetectorState>({
     phase: "off",
     progress: null,
