@@ -20,10 +20,10 @@ import {
   type MintedCard,
   type RainClient,
 } from "@pc/settlement";
-import { loadConfig, type Config } from "./config.ts";
+import { loadConfig, rulingKey, type Config } from "./config.ts";
 
 /** Suppliers we are willing to pay. The `.verify()` guard checks against this. */
-const KNOWN_SUPPLIERS = new Set(["restaurant-depot", "sysco", "us-foods"]);
+const KNOWN_SUPPLIERS = ["restaurant-depot", "sysco", "us-foods"];
 
 export interface RestockLoop {
   readonly pipeline: Pipeline;
@@ -52,6 +52,11 @@ export interface RestockOptions {
 export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
   const config = options.config ?? loadConfig();
 
+  // The configured demo payee is always a known supplier. Without this, editing
+  // DEMO_PAYEE_ID strands the demo on payee_unverified before it ever reaches
+  // the gate, which reads as a bug rather than as a configuration choice.
+  const knownSuppliers = new Set([...KNOWN_SUPPLIERS, config.DEMO_PAYEE_ID]);
+
   // ─── PERCEPTION ────────────────────────────────────────────────────────────
   // A manual source on stage; a `visionSource` would drop in here unchanged.
   const camera = manualSource("shelf-cam-1", { kind: "vision" });
@@ -59,11 +64,15 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
   // ─── POLICY ────────────────────────────────────────────────────────────────
   // The only thing that can authorize. Fail-closed by construction: without a
   // key it cannot write a ruling, and without a ruling it will not allow.
+  // Rulings sign with the agent key when one is configured: the agent may ask
+  // the gate, only the owner's key may move it.
+  const signer = rulingKey(config);
   const policy = monadPolicyPlane({
     rpcUrl: config.MONAD_RPC_URL,
     address: config.POLICY_CONTRACT_ADDRESS as `0x${string}`,
-    ...(config.DEPLOYER_PRIVATE_KEY ? { privateKey: config.DEPLOYER_PRIVATE_KEY } : {}),
+    ...(signer ? { privateKey: signer } : {}),
     timeoutMs: config.AUTHORIZE_TIMEOUT_MS,
+    recordDenies: config.RECORD_DENIES,
   });
 
   // ─── SETTLEMENT ────────────────────────────────────────────────────────────
@@ -104,7 +113,7 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
       memo: "automatic restock",
     }))
     // Runs BEFORE the policy plane, so an unknown supplier costs no gas.
-    .verify((p) => KNOWN_SUPPLIERS.has(p.id));
+    .verify((p) => knownSuppliers.has(p.id));
 
   if (options.onEvent) pipeline.onEvent(options.onEvent);
 
