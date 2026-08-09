@@ -48,6 +48,14 @@ export interface MonadPolicyConfig {
    * cannot back up, which is precisely what the product says it does not do.
    */
   readonly requireOnchainRef?: boolean;
+  /**
+   * Write denied rulings onchain too. Default FALSE: the free read already
+   * refuses, and a deny that costs gas on every stray intent is a griefing
+   * vector. Turn it on when the refusal itself is the evidence you want —
+   * `ruleMint` writes no state on a deny, but it emits `MintRuling`, and the
+   * tx hash lands on the deny as its `onchainRef`.
+   */
+  readonly recordDenies?: boolean;
   /** Injectable for tests. Production passes neither. */
   readonly publicClient?: PublicClient;
   readonly walletClient?: WalletClient;
@@ -67,6 +75,7 @@ export function monadPolicyPlane(config: MonadPolicyConfig): PolicyPlane {
   const timeoutMs = config.timeoutMs ?? 20_000;
   const ttlMs = config.authorizationTtlMs ?? 60_000;
   const requireRef = config.requireOnchainRef ?? true;
+  const recordDenies = config.recordDenies ?? false;
 
   const publicClient =
     config.publicClient ??
@@ -111,8 +120,46 @@ export function monadPolicyPlane(config: MonadPolicyConfig): PolicyPlane {
       }
 
       if (!allowed) {
-        // Refused for free. No gas, no transaction, and the reason is legible.
-        return deny(intent, reasonFromCode(reasonCode));
+        const readReason = reasonFromCode(reasonCode);
+        if (!recordDenies || !walletClient || !account) {
+          // Refused for free. No gas, no transaction, and the reason is legible.
+          return deny(intent, readReason);
+        }
+        // RECORD_DENIES: the refusal itself goes on chain. `ruleMint` writes no
+        // state on a deny — the MintRuling event is the whole point of the gas,
+        // and its tx hash becomes the deny's `onchainRef`.
+        try {
+          const startedAt = Date.now();
+          const hash = await walletClient.writeContract({
+            address: config.address,
+            abi: policyAbi,
+            functionName: "ruleMint",
+            args: [intentHash, payeeKey, mcc, amount],
+            account,
+            chain: monadTestnet,
+          });
+          const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: timeoutMs });
+          if (receipt.status !== "success") return deny(intent, readReason);
+          const ruling = findRuling(receipt.logs, intentHash);
+          if (ruling?.allowed) {
+            // State changed between the read and the write and the ruling of
+            // record allowed. Believe the event: the intent is consumed onchain,
+            // and a deny here would strand a ruled allow.
+            return {
+              intentId: intent.id,
+              decision: "allow",
+              onchainRef: hash,
+              expiresAt: Date.now() + ttlMs,
+              rulingMs: Date.now() - startedAt,
+              rulingBlock: Number(receipt.blockNumber),
+            };
+          }
+          // Believe the event's reason where there is one; the look-ahead's otherwise.
+          return deny(intent, ruling ? reasonFromCode(ruling.reason) : readReason, hash);
+        } catch {
+          // Evidence is a bonus, never a second failure mode. The deny stands.
+          return deny(intent, readReason);
+        }
       }
 
       // ─── 2. the ruling of record ───────────────────────────────────────────
@@ -123,6 +170,10 @@ export function monadPolicyPlane(config: MonadPolicyConfig): PolicyPlane {
         // Explicitly opted out of onchain proof. Allowed, but say so honestly.
         return { intentId: intent.id, decision: "allow", expiresAt: Date.now() + ttlMs };
       }
+
+      // Submission to confirmed receipt, one number. On Monad this is a single
+      // ~400 ms block, and the record prints it because that is the argument.
+      const startedAt = Date.now();
 
       let hash: Hex;
       try {
@@ -167,6 +218,8 @@ export function monadPolicyPlane(config: MonadPolicyConfig): PolicyPlane {
         decision: "allow",
         onchainRef: hash,
         expiresAt: Date.now() + ttlMs,
+        rulingMs: Date.now() - startedAt,
+        rulingBlock: Number(receipt.blockNumber),
       };
     },
   };

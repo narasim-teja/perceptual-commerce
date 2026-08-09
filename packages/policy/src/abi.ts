@@ -58,6 +58,7 @@ export const policyAbi = [
   },
   { type: "function", name: "maxMintsPerWindow", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "maxCentsPerWindow", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "windowStart", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   {
     type: "function",
     name: "allowedPayee",

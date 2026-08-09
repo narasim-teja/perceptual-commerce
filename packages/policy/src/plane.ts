@@ -24,4 +24,5 @@ export type DenyReason =
   | "payee_not_allowed"
   | "mcc_not_allowed"
   | "amount_over_cap"
-  | "velocity_exceeded";
+  | "velocity_exceeded"
+  | "already_ruled";
