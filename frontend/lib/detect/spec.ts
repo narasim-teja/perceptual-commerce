@@ -14,7 +14,7 @@
  * apart, the layer claim would be decoration.
  *
  * Weights are stated in megabytes because they are a real cost the operator pays
- * on a hackathon network, and a surface that hides a 148 MB download behind a
+ * on a conference network, and a surface that hides a 148 MB download behind a
  * spinner is lying about what it is doing.
  */
 

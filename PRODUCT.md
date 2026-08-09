@@ -19,7 +19,7 @@ locally while wiring the perception layer, who needs to see which stage failed a
 
 ## Product Purpose
 
-perceptual-commerce is the perception layer for agentic commerce. It lets an agent
+Tessr is the perception layer for agentic commerce. It lets an agent
 sense a real-world condition and turn it into a bounded payment, with an onchain policy
 contract as the fail-closed authority over whether the agent may spend at all.
 
@@ -81,7 +81,12 @@ amount, merchant-category allowlist, and expiry natively at authorization time.
 
 ## Brand Commitments
 
-- Product name is `perceptual-commerce`, lowercase.
+- Product name is **Tessr**: capitalised in prose, lowercase in every interface mark, and
+  rendered `TESSR` wherever `.bit` uppercases it. The repository directory and the `@pc/*`
+  workspace package names were deliberately left alone; they are not user-facing.
+- The repository is <https://github.com/narasim-teja/tessr>. Nothing else links to the project.
+- Never name a hackathon, an event, or a sponsor relationship on any surface. Rain is described
+  as what it is: the card issuer, used in its sandbox.
 - No em dashes in any interface copy. Confirmed, binding.
 - Voice is precise and unhedged. The source comments are the register: state the
   mechanism, name the limit, refuse to overclaim.

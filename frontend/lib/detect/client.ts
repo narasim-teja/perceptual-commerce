@@ -155,7 +155,7 @@ export function createDetectorClient(options: DetectorClientOptions): DetectorCl
         case "failed":
           settle();
           // A WebGPU backend that crashes mid-execution gets the same answer as
-          // one that hangs: rebuild once on WASM. Observed for real — RF-DETR
+          // one that hangs: rebuild once on WASM. Observed for real: RF-DETR
           // and OWL-ViT throw "null function" / "memory access out of bounds"
           // from some WebGPU providers while running fine on WASM, and a
           // detector that answers slowly beats one that is dead.

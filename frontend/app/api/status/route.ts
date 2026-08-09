@@ -43,7 +43,7 @@ export async function GET() {
     return NextResponse.json({ ...base, policy: await readPolicyStateWithRetry(), chainError: null });
   } catch (e) {
     // The dashboard must still render when the chain is unreachable. That is a
-    // demo state worth showing, not a 500 — and it is an accurate one: with no
+    // demo state worth showing, not a 500, and it is an accurate one: with no
     // chain, every intent denies.
     return NextResponse.json({
       ...base,

@@ -135,6 +135,29 @@ failed, or is running on a slower backend says so in words, with the megabytes a
 named. This is the same rule as the allow/deny materials: the interface states the mechanism and
 names the limit, and never renders a confident value it did not measure.
 
+### The front page's plate is a reading, not a gauge
+
+`components/plate.tsx` runs the same scene and the same screen at poster scale, and it is the one
+image a visitor sees before they know anything. Its first draft printed a count and a predicate and
+read as a threshold tripping, which is the cheapest possible description of the product. It now
+prints the whole judgement: the model id struck over the frame, hollow accent boxes with score tabs
+where the detector puts them, the live count, and four readout lines for what it read, what
+predicate the reading was tested against, how many of the four required consecutive low readings
+have landed, and what it emitted. Until the fourth, that last line reads "nothing yet. one low
+reading is not a reason to spend."
+
+Two accent rules follow from this and they are not interchangeable. The `n found` mark and the
+region box take the accent only when the debounce has confirmed, because that is the reading that
+will fire. The predicate chip is a separate fact and goes to solid ink on true, never to the accent:
+a true predicate that has not been confirmed is not a payment, and painting it in the alarm colour
+would say it was.
+
+The plate names its own limit in its footer rather than in a doc: the scene, the screening and the
+evidence hash are produced live by the shipped code, and the boxes are drawn from the scene rather
+than inferred, because a landing page has no business pulling 9 MB of weights down to make a point.
+The console does that part. This is the same rule as everywhere else on the sheet, applied to the
+one surface where it would have been easiest to skip.
+
 ## Composition
 
 Three columns on `lg` and up, in a fixed-height console that does not scroll the page: **the sight**
@@ -170,7 +193,16 @@ hairlines), the material-not-colour state vocabulary, and the size of the marks 
 ## Copy
 
 - **No em dashes.** Binding, from the user. Use commas, colons, parentheses or a full stop.
+- The product is **Tessr**: capitalised in prose, lowercase in interface marks, `TESSR` wherever
+  `.bit` uppercases it.
 - Lowercase for `.bit` labels and control text; sentence case for prose.
 - State the mechanism, name the limit, refuse to overclaim. The surface says "mint authority" and
   never implies the contract intercepts a live card authorization.
 - A refusal is written as the system working, never as an error.
+- **Never name a hackathon, an event, or a sponsor relationship.** Rain appears as what it is: the
+  card issuer, used in its sandbox. A dateline that says where a thing was built is fine; a
+  dateline that files it under an event is not, because the event ends and the product does not.
+- The two-authority split is a strength and is written as one. The old front page set it as "the
+  honest limit" beside a box labelled "refused", which asked a reader to admire a caveat before
+  they knew what was being caveated. It is now the closing line under three named refusals, where
+  it reads as the reason to trust the other three sentences.

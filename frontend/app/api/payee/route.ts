@@ -9,7 +9,7 @@ export const maxDuration = 60;
  * Toggle a payee on the onchain allowlist.
  *
  * A second, different refusal to demo: remove the supplier and the gate denies
- * with `payee_not_allowed` rather than `kill_switch` — and it costs no gas,
+ * with `payee_not_allowed` rather than `kill_switch`, and it costs no gas,
  * because the free read catches it before we ever write.
  */
 export async function POST(request: Request) {

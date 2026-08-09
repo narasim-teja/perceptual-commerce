@@ -87,7 +87,7 @@ export function Masthead({
       {/* The brand is the way back to the front page. */}
       <a href="/" className="flex items-center gap-[10px] hover:text-ink-inv">
         <Mark />
-        <h1 className="bit bit-16">perceptual-commerce</h1>
+        <h1 className="bit bit-16">tessr</h1>
       </a>
 
       <p

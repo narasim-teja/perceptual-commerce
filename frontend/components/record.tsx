@@ -67,7 +67,7 @@ function detailFor(event: FeedEvent): string | null {
   // one to a bare transfer id.
   if (event.signal?.startsWith("funding:")) return event.detail;
   if (event.stage === "authorized" && event.detail?.startsWith("0x")) {
-    // "<hash> · ruling confirmed in NNN ms, block N" — shorten the hash, keep
+    // "<hash> · ruling confirmed in NNN ms, block N": shorten the hash, keep
     // the timing whole: the ~400 ms confirmation is the number worth reading.
     const [hash = "", ...note] = event.detail.split(" · ");
     return note.length ? `${shortHash(hash, 12, 8)} · ${note.join(" · ")}` : `ruling ${shortHash(hash, 12, 8)}`;

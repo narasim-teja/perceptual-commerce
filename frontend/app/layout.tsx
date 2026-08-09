@@ -30,9 +30,16 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 -->`;
 
 export const metadata: Metadata = {
-  title: "perceptual-commerce",
+  title: "tessr",
   description:
-    "The perception layer for agentic commerce. An agent senses a real-world condition and spends on it, but only if an onchain policy contract permits the instrument to exist.",
+    "The perception layer for agentic commerce. A vision model watches a real scene and proposes a payment the moment a condition becomes true, and an onchain contract on Monad decides whether the card may exist at all.",
+  openGraph: {
+    title: "tessr",
+    siteName: "tessr",
+    description:
+      "The perception layer for agentic commerce. Perception proposes, an onchain contract authorizes, and every ambiguity is a deny.",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

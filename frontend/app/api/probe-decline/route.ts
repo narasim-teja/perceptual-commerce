@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Demo beat 5 — the wrong-category authorization, as evidence.
+ * Demo beat 5: the wrong-category authorization, as evidence.
  *
  * The probe itself runs inside the spend path, between mint and purchase,
  * because that is the only window where the card is still active: the first

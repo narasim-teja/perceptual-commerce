@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /**
  * The audit trail, from both sides: what we recorded, and what the issuer
- * independently says happened. They should agree — and a judge asking "how do
+ * independently says happened. They should agree, and a judge asking "how do
  * you know?" gets to see both.
  *
  * `rainLedger` is the sharpest form of that: Rain's own posted record of the

@@ -26,11 +26,33 @@ function wobble(seed: number): number {
   return s - Math.floor(s);
 }
 
+/* The shelf's layout, in normalised frame coordinates so it survives any canvas
+   size. Kept as named constants rather than inline fractions because the front
+   page draws detection boxes over these jars, and two copies of the arithmetic
+   would drift apart the first time a jar moved. */
+const JAR_W = 0.072;
+const JAR_H = 0.3;
+const JAR_PITCH = JAR_W * 1.16;
+const CAP_H = JAR_H * 0.13;
+const SHELF_Y = 0.74;
+
+/**
+ * Where jar `i` stands: `[x0, y0, x1, y1]`, normalised, cap included.
+ *
+ * Exported for the front-page plate, which boxes these the way a detector
+ * would. The cap is inside the rect on purpose: a detector asked for `bottle`
+ * returns the whole bottle, not the body of it.
+ */
+export function jarRect(i: number): readonly [number, number, number, number] {
+  const x0 = 0.2 + i * JAR_PITCH + (wobble(i + 1) - 0.5) * 0.003;
+  return [x0, SHELF_Y - JAR_H - CAP_H, x0 + JAR_W, SHELF_Y];
+}
+
 export function drawScene(ctx: CanvasRenderingContext2D, state: SceneState): void {
   const { width: w, height: h } = ctx.canvas;
-  const jarW = w * 0.072;
-  const jarH = h * 0.3;
-  const shelfY = h * 0.74;
+  const jarW = w * JAR_W;
+  const jarH = h * JAR_H;
+  const shelfY = h * SHELF_Y;
 
   // Back wall, lit from above left the way a stockroom is. Kept bright on
   // purpose: the jars have to punch a hole in it, or a 12x9 luminance grid has
@@ -50,8 +72,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, state: SceneState): voi
 
   // The jars, filled from the left. Removing stock leaves bright wall behind.
   for (let i = 0; i < state.stock; i++) {
-    const jitter = wobble(i + 1);
-    const x = w * 0.2 + i * (jarW * 1.16) + (jitter - 0.5) * 2;
+    const x = jarRect(i)[0] * w;
     const y = shelfY - jarH;
 
     // body
