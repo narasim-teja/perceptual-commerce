@@ -88,9 +88,11 @@ export function Button({
         "bit relative border-2 border-ink transition-transform duration-100 ease-out",
         "shadow-[0_0_0_var(--ink)] hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-[4px_4px_0_var(--ink)]",
         "active:translate-x-0 active:translate-y-0 active:shadow-[0_0_0_var(--ink)]",
-        // bg-none clears the refusal hatch, so a disabled danger control reads as
-        // unavailable rather than as an alarm nobody can act on.
-        "disabled:pointer-events-none disabled:border-ink-3 disabled:bg-paper-2 disabled:bg-none disabled:text-ink-3 disabled:shadow-none",
+        // Disabled dims the control it was rather than repainting it paper,
+        // which washed the primary's signal color out to a blank white slab.
+        // bg-none still clears the refusal hatch, so a disabled danger control
+        // reads as unavailable rather than as an alarm nobody can act on.
+        "disabled:pointer-events-none disabled:bg-none disabled:opacity-45 disabled:shadow-none",
         "data-[busy]:animate-pulse",
         SIZE[size],
         VARIANT[variant],
