@@ -39,7 +39,40 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 -->`;
 
 const REPO = "https://github.com/narasim-teja/tessr";
+const SDK_DOCS = `${REPO}#the-sdk`;
+const VISION_DOCS = `${REPO}#the-perception-layer`;
 const EXPLORER = "https://testnet.monadexplorer.com";
+
+/**
+ * The quickstart, condensed to what fits a column without lying about it.
+ *
+ * Every identifier here is a real export with this signature. A landing page
+ * that invents a nicer API than the one that shipped is the single fastest way
+ * to lose a developer, because the first thing they do is paste it.
+ */
+const QUICKSTART = `import { createCommerce, usd } from "@pc/core";
+import { manualSource } from "@pc/perception";
+import { monadPolicyPlane } from "@pc/policy";
+import { rainCardRail, rainClient } from "@pc/settlement";
+
+const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
+
+// the gate. localPolicy() is the same interface with no chain.
+const policy = monadPolicyPlane({ rpcUrl, address, privateKey });
+
+// the rail. fakeRainServer() is the same interface with no cards.
+const rail = rainCardRail({ client: rainClient({ apiKey, userId }), pem });
+
+// perception. a camera, a price feed, a calendar: same shape.
+const shelf = manualSource("shelf-cam-1");
+
+await createCommerce({ policy, rail })
+  .watch(shelf)
+  .when((o) => o.signal === "bottle.stock < 3")
+  .propose(() => ({ amount: usd(42.99), payee }))
+  .verify((p) => suppliers.has(p.id))   // an unknown payee costs no gas
+  .onResult((r) => r.ok && ship(r.receipt))
+  .start();`;
 const GATE = "0x8FbB75A725e9C09C0Cc1680795D90409732381cA";
 const RULING = "0x065b210bede9f87cbee555916a508faecfc6a754bfc813908495c3840c002e4c";
 
@@ -201,6 +234,50 @@ function RunRow({
       </span>
       <span className="datum min-w-0 flex-1 pt-[4px] break-words text-ink-2">{children}</span>
     </li>
+  );
+}
+
+/**
+ * The quickstart, set as code.
+ *
+ * Comments drop to the quiet ink so the call chain is what the eye lands on.
+ * Split rather than highlighted: this world has one accent and it belongs to a
+ * ruling, not to a keyword.
+ */
+function Code({ source }: { source: string }) {
+  return (
+    <pre className="datum overflow-x-auto px-3 py-3 text-[11px] leading-[1.7] text-ink">
+      <code>
+        {source.split("\n").map((line, i) => {
+          const at = line.indexOf("//");
+          return (
+            <span key={i} className="block">
+              {at === -1 ? (
+                line || " "
+              ) : (
+                <>
+                  {line.slice(0, at)}
+                  <span className="text-ink-3">{line.slice(at)}</span>
+                </>
+              )}
+            </span>
+          );
+        })}
+      </code>
+    </pre>
+  );
+}
+
+/** A swap point: what ships offline, and what it becomes in production. */
+function Swap({ from, to }: { from: string; to: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 border-b border-dashed border-paper-3 py-[7px] last:border-b-0">
+      <span className="datum text-[11px] text-ink-3">{from}</span>
+      <span className="bit bit-8 text-ink-3" aria-label="becomes">
+        &gt;&gt;
+      </span>
+      <span className="datum text-[11px] text-ink">{to}</span>
+    </div>
   );
 }
 
@@ -434,6 +511,59 @@ export default function FrontPage() {
         </div>
       </section>
 
+      {/* ─── the sdk ──────────────────────────────────────────────────────── */}
+      <section className="mt-10 border-t-2 border-ink pt-6">
+        <h3 className="bit bit-16 text-ink">wire it into your own agent</h3>
+        <p className="mt-4 max-w-[86ch] text-[14px] leading-[1.65] text-ink-2">
+          Tessr is four packages and one chain. You bring a source, a predicate and a proposal;
+          the SDK owns the order they run in. Everything below runs on your machine with no env
+          vars, no network, no chain and no cards, and every plane in it is the swappable one.
+        </p>
+
+        <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-8">
+          <div className="min-w-0 border-2 border-ink">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b-2 border-ink bg-paper-2 px-3 py-[9px]">
+              <span className="bit bit-12 text-ink">examples/quickstart.ts</span>
+              <span className="label">bun run example</span>
+            </div>
+            <Code source={QUICKSTART} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="border-2 border-ink">
+              <div className="border-b-2 border-ink bg-paper-2 px-3 py-[9px]">
+                <h4 className="bit bit-12 text-ink">the ordering is the product</h4>
+              </div>
+              <p className="px-3 py-3 text-[13px] leading-[1.6] text-ink-2">
+                <span className="datum text-[11px] text-ink">verify</span> runs before the gate,
+                so an unknown payee never reaches the chain and never costs gas.{" "}
+                <span className="datum text-[11px] text-ink">authorize</span> runs before{" "}
+                <span className="datum text-[11px] text-ink">settle</span>, and settle takes the
+                authorization as an argument, which makes calling it without one a type error
+                rather than a policy you have to remember.
+              </p>
+            </div>
+
+            <div className="mt-4 border-2 border-ink">
+              <div className="border-b-2 border-ink bg-paper-2 px-3 py-[9px]">
+                <h4 className="bit bit-12 text-ink">swap any plane</h4>
+              </div>
+              <div className="px-3 py-2">
+                <Swap from="manualSource" to="your own source" />
+                <Swap from="localPolicy" to="monadPolicyPlane" />
+                <Swap from="fakeRainServer" to="the rain sandbox" />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <LinkButton href={SDK_DOCS} external>
+                read the sdk reference
+              </LinkButton>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ─── one run, as printed ──────────────────────────────────────────── */}
       <section className="mt-10 border-t-2 border-ink pt-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -554,7 +684,7 @@ export default function FrontPage() {
           </Fact>
           <Fact label="the detectors">
             <a
-              href={`${REPO}/blob/main/docs/05-vision-layer.md`}
+              href={VISION_DOCS}
               target="_blank"
               rel="noreferrer"
               className="underline underline-offset-2"
@@ -562,6 +692,16 @@ export default function FrontPage() {
               four published models
             </a>
             , run in your browser, nothing uploaded
+          </Fact>
+          <Fact label="the sdk">
+            <a
+              href={SDK_DOCS}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              the api the code above actually exports
+            </a>
           </Fact>
           <Fact label="the card">real, minted in rain&rsquo;s sandbox at RAIL=rain</Fact>
           <Fact label="this deployment">
@@ -580,6 +720,9 @@ export default function FrontPage() {
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
             <LinkButton href="/try" variant="primary" size="lg">
               try the console
+            </LinkButton>
+            <LinkButton href={SDK_DOCS} size="lg" external>
+              read the sdk reference
             </LinkButton>
             <LinkButton href={REPO} size="lg" external>
               github

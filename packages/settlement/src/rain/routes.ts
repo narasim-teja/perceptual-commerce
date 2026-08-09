@@ -8,7 +8,7 @@
  * entirely in the policy plane.
  *
  * Routes are immutable. Create one, keep its id, and reuse it forever; there is
- * no PATCH, only DELETE. The demo creates exactly one (spikes/07) and stores it
+ * no PATCH, only DELETE. The demo creates exactly one (scripts/payment-route.ts) and stores it
  * as RAIN_PAYMENT_ROUTE_ID.
  *
  * `simulatePaymentRoute` is the async half: it answers 202 `{"success":true}`

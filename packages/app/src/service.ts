@@ -77,7 +77,7 @@ interface Service {
    * The payment route the fake rail built for itself, so RAIL=fake rehearses
    * the funding beat without configuration. On the live rail this stays null:
    * routes are immutable and budgeted, so the one real route is created once
-   * by spikes/07 and arrives as RAIN_PAYMENT_ROUTE_ID.
+   * by scripts/payment-route.ts and arrives as RAIN_PAYMENT_ROUTE_ID.
    */
   fundingRouteId: string | null;
   /**
@@ -477,7 +477,7 @@ const FUND_AMOUNT = "2";
  * watch it land as a transfer on Rain's issuing ledger.
  *
  * The route is the immutable one from RAIN_PAYMENT_ROUTE_ID (created once by
- * spikes/07). On RAIL=fake the service builds its own route against the fixture
+ * scripts/payment-route.ts). On RAIL=fake the service builds its own route against the fixture
  * so the beat rehearses offline, end to end, with the same record rows:
  * funding requested, transfer visible, transfer completed.
  *
@@ -503,7 +503,7 @@ export async function fundBudget(): Promise<FundOutcome> {
       return {
         ok: false,
         error:
-          "no RAIN_PAYMENT_ROUTE_ID configured. Create the one immutable route with `bun run spikes/07-payment-route.ts --confirm` and put its id in .env.",
+          "no RAIN_PAYMENT_ROUTE_ID configured. Create the one immutable route with `bun run route:create --address 0x… --confirm` and put its id in .env.",
       };
     }
     // The fake rail provisions its own route, once per process.

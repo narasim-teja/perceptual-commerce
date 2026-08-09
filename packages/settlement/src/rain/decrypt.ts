@@ -19,7 +19,7 @@ import crypto from "node:crypto";
  *
  * Correct order: split ciphertext from tag, `setAuthTag(tag)`, `update(ciphertext)`,
  * `final()`. `final()` is the whole point — it throws if the tag doesn't verify.
- * Logged in docs/FEEDBACK.md; proven byte-for-byte in spikes/02.
+ * Proven byte-for-byte against the live sandbox before this shipped.
  */
 
 export interface EncryptedField {

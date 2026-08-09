@@ -1,9 +1,13 @@
 {
-  "name": "perceptual-commerce",
+  "name": "tessr",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "description": "The perception layer for agentic commerce: perceive a real-world condition, gate it fail-closed onchain, spend inside bounds.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/narasim-teja/tessr.git"
+  },
   "workspaces": [
     "packages/*",
     "frontend"
@@ -11,12 +15,6 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "spike:00": "bun run spikes/00-rain-auth.ts",
-    "spike:01": "bun run spikes/01-collateral-fund.ts",
-    "spike:02": "bun run spikes/02-session-encrypt-roundtrip.ts",
-    "spike:03": "bun run spikes/03-mint-scoped-card.ts",
-    "spike:04": "bun run spikes/04-simulate-authorize-settle.ts",
-    "spike:05": "bun run spikes/05-monad-policy-rw.ts",
     "postinstall": "bun run contract:deps",
     "contract:deps": "test -d packages/policy/contract/lib/forge-std || (git clone --depth 1 -q https://github.com/foundry-rs/forge-std packages/policy/contract/lib/forge-std && rm -rf packages/policy/contract/lib/forge-std/.git packages/policy/contract/lib/forge-std/lib)",
     "contract:build": "forge build --root packages/policy/contract",
@@ -26,6 +24,8 @@
     "policy:deploy:dry": "bun run scripts/policy.ts deploy --dry",
     "policy:deploy": "bun run scripts/policy.ts deploy",
     "policy:state": "bun run scripts/policy.ts state",
+    "route:list": "bun run scripts/payment-route.ts list",
+    "route:create": "bun run scripts/payment-route.ts create",
     "web": "bun run --cwd frontend dev",
     "demo": "bun run packages/app/src/restock.ts",
     "example": "bun run examples/quickstart.ts"

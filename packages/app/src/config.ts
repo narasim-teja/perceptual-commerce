@@ -84,7 +84,7 @@ const schema = z.object({
   /**
    * The one immutable payment route the funding beat pushes simulated dollars
    * down (usd/ach in, usdc out on Base Sepolia). Created once by
-   * `spikes/07-payment-route.ts`; optional because RAIL=fake builds its own
+   * `scripts/payment-route.ts`; optional because RAIL=fake builds its own
    * route against the fixture and the live rail degrades to "not configured".
    */
   RAIN_PAYMENT_ROUTE_ID: z.uuid().optional(),
