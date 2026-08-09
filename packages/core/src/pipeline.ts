@@ -2,13 +2,12 @@
  * The fluent surface — and the place the three planes are wired together in the
  * one order they are allowed to run in.
  *
- *   commerce
+ *   createCommerce({ policy, rail })                      // see commerce.ts
  *     .watch(shelfCam)                                    // PERCEPTION (pluggable)
- *     .when(obs => obs.signal === "bottle.stock < 3")  // -> SpendIntent
- *     .propose(obs => ({ amount: usd(42.99), payee }))    // what to do about it
- *     .verify(payee => payee.isKnown())                   // guard BEFORE the gate
- *     .spend()                                            // authorize -> settle
- *     .onResult(log)
+ *     .when(obs => obs.signal === "bottle.stock < 3")  // is it worth acting on?
+ *     .propose(obs => ({ amount: usd(42.99), payee }))    // -> SpendIntent
+ *     .verify(payee => suppliers.has(payee.id))           // guard BEFORE the gate
+ *     .onResult(log)                                      // authorize -> settle ran inside
  *     .start();
  *
  * The ordering is the product. `verify` runs before `authorize`, so an unknown
@@ -199,7 +198,16 @@ export function watch(source: ObservationSource, config: PipelineConfig): Pipeli
       // Before the network, before gas. A camera at 30fps must mint once.
       if (await dedupe.seen(intent.id)) {
         const existing = await config.rail.receiptFor(intent.id);
-        emit({ stage: "filtered", intent, detail: "duplicate intent — already handled" });
+        // Seen but no receipt means the earlier attempt was marked before its
+        // settlement failed. Say that, not "already handled": a retry inside the
+        // bucket is refused on purpose, and the operator deserves to know why.
+        emit({
+          stage: "filtered",
+          intent,
+          detail: existing
+            ? "duplicate intent: already handled"
+            : "duplicate of an intent whose settlement failed; wait for the next bucket to retry",
+        });
         return existing ? deliver({ ok: true, receipt: existing }) : null;
       }
 
@@ -239,7 +247,17 @@ export function watch(source: ObservationSource, config: PipelineConfig): Pipeli
         emit({ stage: "rejected", intent, result, detail: describeError(result.error) });
         return deliver(result);
       }
-      emit({ stage: "authorized", intent, detail: auth.onchainRef });
+      emit({
+        stage: "authorized",
+        intent,
+        // The hash first so consumers that only want the ref can split on the
+        // separator; the timing after it because ~400 ms confirmation is the
+        // number the whole Monad story turns on.
+        detail:
+          auth.onchainRef && auth.rulingMs !== undefined
+            ? `${auth.onchainRef} · ruling confirmed in ${auth.rulingMs} ms, block ${auth.rulingBlock}`
+            : auth.onchainRef,
+      });
 
       // ─── 6. settle ───────────────────────────────────────────────────────
       // Mark as seen BEFORE settling. If settlement crashes mid-flight we would

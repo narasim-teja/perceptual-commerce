@@ -6,8 +6,5 @@
   "description": "The SDK spine: domain types, branded money, the closed error union, the fail-closed authorize gate, idempotency, and the lazy pipeline.",
   "exports": {
     ".": "./src/index.ts"
-  },
-  "dependencies": {
-    "zod": "^4.1.13"
   }
 }

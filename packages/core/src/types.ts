@@ -73,6 +73,14 @@ export interface Authorization {
   /** Always populated on a deny. A deny without a reason is a bug. */
   readonly reason?: string;
   readonly expiresAt: number;
+  /**
+   * How long the ruling of record took, submission to confirmed receipt, in ms.
+   * Present only when a ruling was written onchain. On Monad this is one block,
+   * ~400 ms, and the record prints it because that number is the argument.
+   */
+  readonly rulingMs?: number;
+  /** Block the ruling landed in. Present exactly when `rulingMs` is. */
+  readonly rulingBlock?: number;
 }
 
 export interface Receipt {
