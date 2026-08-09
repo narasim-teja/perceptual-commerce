@@ -5,11 +5,11 @@
  * and no way to reach settlement. Swapping a shelf camera for a price feed or a
  * calendar changes this file's implementation and nothing else in the spine.
  *
- * We ship `manual` (and optionally a crude `vision`) for the hackathon. The other
- * surfaces stay unbuilt on purpose — the seam is the claim, not the surfaces.
+ * We ship `manual` and a browser-side `vision` source. The other
+ * surfaces stay unbuilt on purpose: the seam is the claim, not the surfaces.
  */
 
-import type { PerceptionSourceKind } from "@pc/core";
+import type { PerceptionSourceKind } from "@tessr/core";
 
 export interface Observation {
   readonly sourceId: string;

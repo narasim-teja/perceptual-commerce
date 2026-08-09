@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readPolicyState, snapshot } from "@pc/app";
+import { readPolicyState, snapshot } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

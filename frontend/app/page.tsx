@@ -50,17 +50,17 @@ const EXPLORER = "https://testnet.monadexplorer.com";
  * that invents a nicer API than the one that shipped is the single fastest way
  * to lose a developer, because the first thing they do is paste it.
  */
-const QUICKSTART = `import { createCommerce, usd } from "@pc/core";
-import { manualSource } from "@pc/perception";
-import { monadPolicyPlane } from "@pc/policy";
-import { rainCardRail, rainClient } from "@pc/settlement";
+const QUICKSTART = `import { createCommerce, usd } from "@tessr/core";
+import { manualSource } from "@tessr/perception";
+import { monadPolicyPlane } from "@tessr/policy";
+import { rainCardRail, rainClient } from "@tessr/settlement";
 
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
 
 // the gate. localPolicy() is the same interface with no chain.
 const policy = monadPolicyPlane({ rpcUrl, address, privateKey });
 
-// the rail. fakeRainServer() is the same interface with no cards.
+// the rail. localRainServer() answers the same api, offline.
 const rail = rainCardRail({ client: rainClient({ apiKey, userId }), pem });
 
 // perception. a camera, a price feed, a calendar: same shape.
@@ -551,7 +551,7 @@ export default function FrontPage() {
               <div className="px-3 py-2">
                 <Swap from="manualSource" to="your own source" />
                 <Swap from="localPolicy" to="monadPolicyPlane" />
-                <Swap from="fakeRainServer" to="the rain sandbox" />
+                <Swap from="localRainServer" to="the rain sandbox" />
               </div>
             </div>
 
@@ -705,7 +705,7 @@ export default function FrontPage() {
           </Fact>
           <Fact label="the card">real, minted in rain&rsquo;s sandbox at RAIL=rain</Fact>
           <Fact label="this deployment">
-            the simulated rail: same loop, same contract reads, no cards
+            the local rail: same loop, same contract reads, no cards minted
           </Fact>
           <Fact label="run the live rail">
             clone the repo, add your rain sandbox keys, RAIL=rain

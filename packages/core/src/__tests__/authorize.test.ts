@@ -16,7 +16,7 @@ const now = () => NOW;
 
 function anIntent(overrides: Partial<SpendIntent> = {}): SpendIntent {
   return {
-    id: "pc-test-intent" as IntentId,
+    id: "tessr-test-intent" as IntentId,
     trigger: { source: "manual", signal: "bottle.stock < 3", confidence: 1 },
     proposal: {
       amount: cents(4299),
@@ -33,7 +33,7 @@ function planeReturning(auth: unknown): PolicyPlane {
 }
 
 const anAllow = (overrides: Partial<Authorization> = {}): Authorization => ({
-  intentId: "pc-test-intent" as IntentId,
+  intentId: "tessr-test-intent" as IntentId,
   decision: "allow",
   onchainRef: "0xabc",
   expiresAt: NOW + 60_000,
@@ -60,7 +60,7 @@ describe("the policy plane says no", () => {
   test("an explicit deny is passed through with its reason", async () => {
     const result = await authorize(
       anIntent(),
-      planeReturning({ intentId: "pc-test-intent", decision: "deny", reason: "kill_switch", expiresAt: 0 }),
+      planeReturning({ intentId: "tessr-test-intent", decision: "deny", reason: "kill_switch", expiresAt: 0 }),
       opts,
     );
     expect(result.decision).toBe("deny");
@@ -70,7 +70,7 @@ describe("the policy plane says no", () => {
   test("a deny with no reason still produces one — a silent deny is unusable on stage", async () => {
     const result = await authorize(
       anIntent(),
-      planeReturning({ intentId: "pc-test-intent", decision: "deny", expiresAt: 0 }),
+      planeReturning({ intentId: "tessr-test-intent", decision: "deny", expiresAt: 0 }),
       opts,
     );
     expect(result.decision).toBe("deny");
@@ -80,7 +80,7 @@ describe("the policy plane says no", () => {
   test("a deny keeps its onchainRef, so a refusal is auditable too", async () => {
     const result = await authorize(
       anIntent(),
-      planeReturning({ intentId: "pc-test-intent", decision: "deny", reason: "velocity", onchainRef: "0xfeed", expiresAt: 0 }),
+      planeReturning({ intentId: "tessr-test-intent", decision: "deny", reason: "velocity", onchainRef: "0xfeed", expiresAt: 0 }),
       opts,
     );
     expect(result.onchainRef).toBe("0xfeed");
@@ -150,7 +150,7 @@ describe("the response is malformed", () => {
   test("an allow with no expiry denies — perishability is not optional", async () => {
     const result = await authorize(
       anIntent(),
-      planeReturning({ intentId: "pc-test-intent", decision: "allow" }),
+      planeReturning({ intentId: "tessr-test-intent", decision: "allow" }),
       opts,
     );
     expect(result.decision).toBe("deny");
@@ -167,7 +167,7 @@ describe("the authorization does not match the intent", () => {
   test("an allow for a different intent id denies — this is the replay guard", async () => {
     const result = await authorize(
       anIntent(),
-      planeReturning(anAllow({ intentId: "pc-some-other-intent" as IntentId })),
+      planeReturning(anAllow({ intentId: "tessr-some-other-intent" as IntentId })),
       opts,
     );
     expect(result.decision).toBe("deny");

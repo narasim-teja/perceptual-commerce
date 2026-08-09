@@ -67,7 +67,7 @@ export function decryptCardSecrets(
   };
 }
 
-/** Log-safe rendering. Never print a full PAN, not even in a hackathon sandbox. */
+/** Log-safe rendering. Never print a full PAN, not even in a sandbox. */
 export function maskPan(pan: string): string {
   const digits = pan.replace(/\D/g, "");
   return digits.length < 4 ? "****" : `**** **** **** ${digits.slice(-4)}`;

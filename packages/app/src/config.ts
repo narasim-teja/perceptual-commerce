@@ -74,7 +74,7 @@ const hexKey = z
 
 const schema = z.object({
   // ─── Rain ─────────────────────────────────────────────────────────────────
-  // Optional at the schema level because RAIL=fake never contacts Rain; the
+  // Optional at the schema level because RAIL=local never contacts Rain; the
   // superRefine below makes both hard-required the moment RAIL=rain.
   RAIN_API_KEY: z.string().min(1, "required — provisioned by the Rain team").optional(),
   RAIN_USER_ID: z.uuid("must be the provisioned uuid (36 chars, dashed)").optional(),
@@ -84,7 +84,7 @@ const schema = z.object({
   /**
    * The one immutable payment route the funding beat pushes simulated dollars
    * down (usd/ach in, usdc out on Base Sepolia). Created once by
-   * `scripts/payment-route.ts`; optional because RAIL=fake builds its own
+   * `scripts/payment-route.ts`; optional because RAIL=local builds its own
    * route against the fixture and the live rail degrades to "not configured".
    */
   RAIN_PAYMENT_ROUTE_ID: z.uuid().optional(),
@@ -158,8 +158,8 @@ const schema = z.object({
   PERCEPTION_LOW_AT: z.coerce.number().int().min(1).max(50).default(3),
 
   // ─── Behaviour ────────────────────────────────────────────────────────────
-  /** `fake` runs against fixtures.ts: no network, no cards. Default, on purpose. */
-  RAIL: z.enum(["fake", "rain"]).default("fake"),
+  /** `local` runs against local-server.ts: no network, no cards. Default, on purpose. */
+  RAIL: z.enum(["local", "rain"]).default("local"),
   /**
    * How long identical facts collapse to one IntentId.
    *
@@ -171,7 +171,7 @@ const schema = z.object({
   INTENT_BUCKET_MS: z.coerce.number().int().positive().default(1_000),
   AUTHORIZE_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
 }).superRefine((value, ctx) => {
-  // The fake rail runs with no network and no credentials, so demanding Rain
+  // The local rail runs with no network and no credentials, so demanding Rain
   // values there would contradict .env.example and block the default demo.
   // The moment the rail is real, the credentials are hard-required again.
   if (value.RAIL !== "rain") return;
@@ -179,27 +179,27 @@ const schema = z.object({
     ctx.addIssue({
       code: "custom",
       path: ["RAIN_API_KEY"],
-      message: "required when RAIL=rain — provisioned by the Rain team",
+      message: "required when RAIL=rain: provisioned by Rain",
     });
   }
   if (!value.RAIN_USER_ID) {
     ctx.addIssue({
       code: "custom",
       path: ["RAIN_USER_ID"],
-      message: "required when RAIL=rain — the provisioned uuid (36 chars, dashed)",
+      message: "required when RAIL=rain: the provisioned uuid (36 chars, dashed)",
     });
   }
 });
 
 /**
- * Internal stand-ins for RAIL=fake. Never sent anywhere: the fake server does
+ * Internal stand-ins for RAIL=local. Never sent anywhere: the local server does
  * not check them, and the real client is never constructed without real values.
  */
-const FAKE_RAIN_API_KEY = "fake-key";
-const FAKE_RAIN_USER_ID = "00000000-0000-4000-8000-000000000000";
+const LOCAL_RAIN_API_KEY = "local-key";
+const LOCAL_RAIN_USER_ID = "00000000-0000-4000-8000-000000000000";
 
 export type Config = Omit<z.infer<typeof schema>, "RAIN_API_KEY" | "RAIN_USER_ID"> & {
-  /** Always present: the provisioned value on RAIL=rain, an internal stand-in on RAIL=fake. */
+  /** Always present: the provisioned value on RAIL=rain, an internal stand-in on RAIL=local. */
   readonly RAIN_API_KEY: string;
   readonly RAIN_USER_ID: string;
   /** Resolved from either the inline PEM or the file path. */
@@ -256,9 +256,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   cached = {
     ...value,
     // superRefine guarantees real values on RAIL=rain, so the stand-ins can
-    // only ever land in fake mode.
-    RAIN_API_KEY: value.RAIN_API_KEY ?? FAKE_RAIN_API_KEY,
-    RAIN_USER_ID: value.RAIN_USER_ID ?? FAKE_RAIN_USER_ID,
+    // only ever land in local mode.
+    RAIN_API_KEY: value.RAIN_API_KEY ?? LOCAL_RAIN_API_KEY,
+    RAIN_USER_ID: value.RAIN_USER_ID ?? LOCAL_RAIN_USER_ID,
     rainPublicKeyPem: pem,
   };
   return cached;
@@ -311,7 +311,9 @@ export function rulingIdentity(config: Config): string {
 /** Log-safe view. Never renders a secret. */
 export function describeConfig(config: Config): Record<string, string> {
   return {
-    rail: config.RAIL,
+    // Named, not abbreviated. A colophon that prints one word leaves the reader
+    // guessing what the other word would have meant.
+    rail: config.RAIL === "rain" ? "rain sandbox" : "local (rain's server half, in process)",
     perception: `${config.PERCEPTION_MODE} / ${config.PERCEPTION_DETECTOR}`,
     rainBaseUrl: config.RAIN_BASE_URL,
     rainUserId: config.RAIN_USER_ID,

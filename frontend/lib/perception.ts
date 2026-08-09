@@ -39,7 +39,7 @@
 // predicate that listens for it, because a string constant duplicated across a
 // trust boundary is a string constant that drifts. The import is a pure
 // formatter: nothing that could spend crosses in either direction.
-import { stockCount, stockLow, stockNominal } from "@pc/perception";
+import { stockCount, stockLow, stockNominal } from "@tessr/perception";
 import { createDetectorClient, type DetectorClient, type DetectorState } from "./detect/client";
 import { DETECTORS, type Box, type DetectorId } from "./detect/spec";
 import { drawScene, FULL_STOCK } from "./scene";

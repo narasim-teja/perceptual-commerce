@@ -1,5 +1,5 @@
 {
-  "name": "@pc/perception",
+  "name": "@tessr/perception",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@pc/core": "workspace:*"
+    "@tessr/core": "workspace:*"
   }
 }

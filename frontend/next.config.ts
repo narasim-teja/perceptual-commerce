@@ -6,10 +6,10 @@ const nextConfig: NextConfig = {
    * there is no build step anywhere in this repo, because Bun runs TS directly.
    * Next has to compile them itself.
    */
-  transpilePackages: ["@pc/core", "@pc/app", "@pc/policy", "@pc/settlement", "@pc/perception"],
+  transpilePackages: ["@tessr/core", "@tessr/app", "@tessr/policy", "@tessr/settlement", "@tessr/perception"],
 
   /**
-   * `@pc/app` reaches for `node:crypto` and `node:fs` (reading the RSA public
+   * `@tessr/app` reaches for `node:crypto` and `node:fs` (reading the RSA public
    * key). Those only ever run in route handlers, never in a browser bundle, but
    * webpack still needs telling not to try.
    */

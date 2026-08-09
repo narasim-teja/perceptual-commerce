@@ -37,7 +37,7 @@ accurate description.
 
 ```bash
 bun install
-cp .env.example .env        # RAIL=fake is the default: no network, no credentials, no cards
+cp .env.example .env        # RAIL=local is the default: no network, no credentials, no cards
 bun run example
 ```
 
@@ -45,18 +45,18 @@ That runs the whole loop on your machine with nothing configured. This is
 `examples/quickstart.ts`, verbatim:
 
 ```typescript
-import { createCommerce, usd } from "@pc/core";
-import { manualSource } from "@pc/perception";
-import { localPolicy } from "@pc/policy";
-import { fakeRainServer, rainCardRail, rainClient } from "@pc/settlement";
+import { createCommerce, usd } from "@tessr/core";
+import { manualSource } from "@tessr/perception";
+import { localPolicy } from "@tessr/policy";
+import { localRainServer, rainCardRail, rainClient } from "@tessr/settlement";
 
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
 
 // POLICY: in-memory here, the onchain contract in production. Same interface.
 const policy = localPolicy({ maxAmountCents: 10_000, allowedPayees: [payee.id], allowedMccs: [payee.mcc] });
 
-// SETTLEMENT: the real client and rail, against an in-process fake Rain server.
-const server = fakeRainServer();
+// SETTLEMENT: the real client and rail, against Rain's server half in process.
+const server = localRainServer();
 const client = rainClient({ apiKey: "example", userId: "00000000-0000-4000-8000-000000000001", fetch: server.fetch });
 const rail = rainCardRail({ client, pem: server.pem, simulatePurchase: true });
 
@@ -78,7 +78,7 @@ camera.close();
 await pipeline.start();
 ```
 
-Swap `localPolicy` for `monadPolicyPlane` and the ruling moves on chain. Swap the fake server
+Swap `localPolicy` for `monadPolicyPlane` and the ruling moves on chain. Swap the local server
 for real credentials and the card is real, minted in the Rain sandbox. Nothing else in the file
 moves.
 
@@ -88,10 +88,18 @@ Four workspace packages. Import from the one that owns the plane you are touchin
 
 | Package | What it gives you |
 |---|---|
-| `@pc/core` | `createCommerce`, the pipeline, money, the error union, the authorize gate, idempotency |
-| `@pc/perception` | the `PerceptionSource` interface and `manualSource` |
-| `@pc/policy` | `localPolicy` (chain-free) and `monadPolicyPlane` (the deployed contract) |
-| `@pc/settlement` | `rainClient`, `rainCardRail`, and `fakeRainServer` for offline runs |
+| `@tessr/core` | `createCommerce`, the pipeline, money, the error union, the authorize gate, idempotency |
+| `@tessr/perception` | the `PerceptionSource` interface and `manualSource` |
+| `@tessr/policy` | `localPolicy` (chain-free) and `monadPolicyPlane` (the deployed contract) |
+| `@tessr/settlement` | `rainClient`, `rainCardRail`, and `localRainServer` for offline runs |
+
+`localRainServer()` is not a mock. It performs Rain's server half in process: it RSA-decrypts the
+`sessionid` header, recovers the session secret, and AES-128-GCM encrypts a generated PAN under
+it, so your real crypto is genuinely exercised. It also reproduces the sandbox's real quirks
+rather than smoothing them, including a scoped card retiring after one approved authorization, a
+declined authorization not consuming the card, and the 1.2x ceiling rounding up. A local server
+that is friendlier than production teaches you nothing. A full loop against it costs zero cards,
+zero network and about 2ms.
 
 ### `createCommerce(config)`
 
@@ -157,7 +165,7 @@ interface SettlementRail {
 }
 ```
 
-`visionSource()` exists in `@pc/perception` and deliberately throws. A camera constructed in the
+`visionSource()` exists in `@tessr/perception` and deliberately throws. A camera constructed in the
 server process would sit on the same side of the trust boundary as the Rain credential and the
 ruling key. The vision layer runs in the browser and posts an `Observation` over one route.
 
@@ -258,9 +266,9 @@ bun run contract:test       # Foundry tests
 bun run typecheck
 ```
 
-`RAIL=fake` runs the entire loop against an in-process Rain server. Every stage still emits, the
-contract is still read and ruled on, and a receipt still comes back. Fill in the `RAIN_*` block
-only when you flip to `RAIL=rain`, which mints a real scoped card in the **Rain sandbox**.
+`RAIL=local` runs the entire loop against Rain's server half in process. Every stage still emits,
+the contract is still read and ruled on, and a receipt still comes back. Fill in the `RAIN_*`
+block only when you flip to `RAIL=rain`, which mints a real scoped card in the **Rain sandbox**.
 Nothing downstream can tell the two apart, and no real funds exist anywhere in this project.
 
 Deploying the policy contract:
@@ -285,7 +293,7 @@ The full list is in `.env.example`; these are the ones that change behaviour.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RAIL` | `fake` | `fake` runs against an in-process Rain server; `rain` mints in the sandbox |
+| `RAIL` | `local` | `local` runs against an in-process Rain server; `rain` mints in the sandbox |
 | `MONAD_RPC_URL` | Monad testnet | where rulings are read and written |
 | `POLICY_CONTRACT_ADDRESS` | none | the deployed gate |
 | `AGENT_PRIVATE_KEY` | none | signs rulings. Omit and the plane reads without writing |

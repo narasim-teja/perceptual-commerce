@@ -1,4 +1,4 @@
-# @pc/core
+# @tessr/core
 
 The SDK spine. Exports the domain types (`SpendIntent`, `Authorization`, `Receipt`), branded money
 (`cents`, `usd` — USD cents, integer math only), the closed `SpendError` union, the fail-closed

@@ -6,14 +6,14 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { cents, type IntentId, type SpendIntent } from "@pc/core";
+import { cents, type IntentId, type SpendIntent } from "@tessr/core";
 import { localPolicy } from "../local.ts";
 
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
 
 function anIntent(over: Partial<SpendIntent> = {}): SpendIntent {
   return {
-    id: `pc-${Math.random().toString(16).slice(2, 14)}` as IntentId,
+    id: `tessr-${Math.random().toString(16).slice(2, 14)}` as IntentId,
     trigger: { source: "manual", signal: "bottle.stock < 3", confidence: 1 },
     proposal: { amount: cents(4299), payee },
     observedAt: Date.now(),

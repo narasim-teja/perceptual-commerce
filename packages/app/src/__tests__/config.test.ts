@@ -1,7 +1,7 @@
 /**
  * The contract of loadConfig, at its two postures:
  *
- *  - RAIL=fake is the out-of-the-box demo and must start with nothing but the
+ *  - RAIL=local is the out-of-the-box demo and must start with nothing but the
  *    contract address, exactly as .env.example promises.
  *  - RAIL=rain talks to a payment API and must refuse to start without the
  *    provisioned credentials.
@@ -25,7 +25,7 @@ let sandbox: string;
 
 beforeEach(() => {
   previousCwd = process.cwd();
-  sandbox = mkdtempSync(join(tmpdir(), "pc-config-"));
+  sandbox = mkdtempSync(join(tmpdir(), "tessr-config-"));
   process.chdir(sandbox);
   resetConfig();
 });
@@ -37,18 +37,18 @@ afterEach(() => {
 });
 
 describe("loadConfig", () => {
-  test("RAIL=fake starts with only the contract address", () => {
-    const config = loadConfig({ POLICY_CONTRACT_ADDRESS: ADDRESS, RAIL: "fake" });
-    expect(config.RAIL).toBe("fake");
-    // Stand-ins, not credentials: the fake server never checks them and the
+  test("RAIL=local starts with only the contract address", () => {
+    const config = loadConfig({ POLICY_CONTRACT_ADDRESS: ADDRESS, RAIL: "local" });
+    expect(config.RAIL).toBe("local");
+    // Stand-ins, not credentials: the local server never checks them and the
     // real client is never built from them.
-    expect(config.RAIN_API_KEY).toBe("fake-key");
+    expect(config.RAIN_API_KEY).toBe("local-key");
     expect(config.RAIN_USER_ID).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  test("RAIL defaults to fake", () => {
+  test("RAIL defaults to local", () => {
     const config = loadConfig({ POLICY_CONTRACT_ADDRESS: ADDRESS });
-    expect(config.RAIL).toBe("fake");
+    expect(config.RAIL).toBe("local");
   });
 
   test("RAIL=rain without Rain credentials refuses to start", () => {
@@ -65,10 +65,10 @@ describe("loadConfig", () => {
     );
   });
 
-  test("POLICY_CONTRACT_ADDRESS is required even on the fake rail", () => {
-    // The policy plane is live in fake mode by design: the rail is simulated,
+  test("POLICY_CONTRACT_ADDRESS is required even on the local rail", () => {
+    // The policy plane is live in local mode by design: the rail is simulated,
     // the gate never is.
-    expect(() => loadConfig({ RAIL: "fake" })).toThrow(/POLICY_CONTRACT_ADDRESS/);
+    expect(() => loadConfig({ RAIL: "local" })).toThrow(/POLICY_CONTRACT_ADDRESS/);
   });
 
   test("RECORD_DENIES is off unless asked for, by name", () => {

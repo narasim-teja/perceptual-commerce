@@ -116,7 +116,7 @@ export function Record({
   result: Status["lastResult"];
   explorerBase: string;
   cardsMinted: number | null;
-  rail: "fake" | "rain";
+  rail: "local" | "rain";
   probing: boolean;
   probeNote: string | null;
   onProbe: () => void;
@@ -135,7 +135,10 @@ export function Record({
             rail === "rain" ? "bg-ink text-ink-inv" : "bg-paper-2 text-ink-3",
           )}
         >
-          {rail === "rain" ? "live rail" : "simulated rail"}
+          {/* "local" against "live", not "simulated" against "real". Both are
+              the same code path against the same schemas; the only difference
+              is whether the server answering is Rain's or ours. */}
+          {rail === "rain" ? "live rail" : "local rail"}
         </span>
       }
     >

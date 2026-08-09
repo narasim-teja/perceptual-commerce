@@ -1,4 +1,4 @@
-import { recentEvents, subscribe, type FeedEvent } from "@pc/app";
+import { recentEvents, subscribe, type FeedEvent } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

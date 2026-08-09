@@ -2,10 +2,10 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "paths": {
-      "@pc/core": ["./packages/core/src/index.ts"],
-      "@pc/perception": ["./packages/perception/src/index.ts"],
-      "@pc/policy": ["./packages/policy/src/index.ts"],
-      "@pc/settlement": ["./packages/settlement/src/index.ts"]
+      "@tessr/core": ["./packages/core/src/index.ts"],
+      "@tessr/perception": ["./packages/perception/src/index.ts"],
+      "@tessr/policy": ["./packages/policy/src/index.ts"],
+      "@tessr/settlement": ["./packages/settlement/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "examples/**/*.ts", "scripts/**/*.ts"],

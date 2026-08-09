@@ -24,8 +24,8 @@ import type {
   SettlementRail,
   SpendIntent,
   SpendResult,
-} from "@pc/core";
-import { failed } from "@pc/core";
+} from "@tessr/core";
+import { failed } from "@tessr/core";
 import type { RainClient } from "./client.ts";
 import { expiresInDays, mintScopedCard, type CeilingMode, type MintedCard } from "./cards.ts";
 import { listTransactions, simulateAuthorize, simulateSettle } from "./simulate.ts";

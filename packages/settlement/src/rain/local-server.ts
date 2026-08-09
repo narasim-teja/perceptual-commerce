@@ -1,14 +1,14 @@
 /**
- * A fake Rain server, good enough to develop the entire loop against.
+ * Rain's server half, in process.
  *
- * This is NOT a mock that returns canned JSON. It performs Rain's server half for
+ * Not a mock, and the name is chosen to say so. It performs Rain's side for
  * real: it RSA-decrypts the `sessionid` header, recovers the session secret, and
- * AES-128-GCM encrypts a generated PAN under it. So the client's real crypto —
- * `generateSessionId`, `decryptSecret` — is genuinely exercised, and a bug in our
+ * AES-128-GCM encrypts a generated PAN under it. The client's real crypto
+ * (`generateSessionId`, `decryptSecret`) is genuinely exercised, so a bug in our
  * decrypt fails here rather than on stage.
  *
  * More importantly it reproduces the sandbox's **actual behaviour**, including the
- * parts that surprised us:
+ * parts that surprised us and that we reported upstream:
  *
  *   - a scoped card is retired after ONE approved authorization  (FEEDBACK R-14)
  *   - a declined authorization does NOT consume the card          (R-14)
@@ -17,16 +17,18 @@
  *   - `completionReason` comes back lowercase                     (R-12)
  *   - merchant strings are space-padded to ISO-8583 widths        (R-13)
  *   - `companyId` is absent on scoped cards                       (R-10)
- *   - `/simulate/payment-routes` answers 202 `{"success":true}` —
- *     not the spec's simulationId shape — and demands a string
+ *   - `/simulate/payment-routes` answers 202 `{"success":true}`,
+ *     not the spec's simulationId shape, and demands a string
  *     amount in dollars, minimum "2"; the deposit then surfaces as
  *     a `transfer` in `processing`, amounts as decimal strings
  *     under `source`, ripening to completed on its own clock (R-16)
  *   - `reverse` takes `newAmount` = what REMAINS authorized; `{}`
  *     is a full reversal, and settle-style `amount` is rejected
  *
- * A fixture that is friendlier than production teaches you nothing. This one is
- * exactly as awkward as the real thing, so code that passes here works there.
+ * Reproducing those quirks rather than smoothing them is the whole point. A
+ * local server that is friendlier than production teaches you nothing, so this
+ * one is exactly as awkward as the real thing and code that passes here works
+ * there.
  *
  * Cost of a full loop against it: zero cards, zero network, ~2ms.
  */
@@ -34,29 +36,29 @@
 import crypto from "node:crypto";
 import type { FetchLike } from "./client.ts";
 
-export interface FakeRainServer {
+export interface LocalRainServer {
   /** Pass to `rainClient({ fetch })`. */
   readonly fetch: FetchLike;
   /** Pass wherever the real code wants Rain's public key. */
   readonly pem: string;
   /** Every request the client made, for assertions. */
-  readonly requests: FakeRequest[];
-  readonly cards: Map<string, FakeCard>;
-  readonly transactions: FakeTransaction[];
-  readonly paymentRoutes: Map<string, FakePaymentRoute>;
+  readonly requests: LocalRequest[];
+  readonly cards: Map<string, LocalCard>;
+  readonly transactions: LocalTransaction[];
+  readonly paymentRoutes: Map<string, LocalPaymentRoute>;
   /** Force the next N requests to fail, to exercise the unhappy paths. */
   failNext(count: number, status: number, message?: string): void;
   reset(): void;
 }
 
-export interface FakeRequest {
+export interface LocalRequest {
   readonly method: string;
   readonly path: string;
   readonly body: unknown;
   readonly idempotencyKey: string | null;
 }
 
-export interface FakeCard {
+export interface LocalCard {
   id: string;
   last4: string;
   status: "active" | "canceled";
@@ -67,7 +69,7 @@ export interface FakeCard {
   cvc: string;
 }
 
-export interface FakeTransaction {
+export interface LocalTransaction {
   id: string;
   type: "spend" | "transfer";
   amount: number;
@@ -81,7 +83,7 @@ export interface FakeTransaction {
   createdAt: number;
 }
 
-export interface FakePaymentRoute {
+export interface LocalPaymentRoute {
   id: string;
   userId: string;
   status: string;
@@ -90,7 +92,7 @@ export interface FakePaymentRoute {
   depositAddress: string;
 }
 
-export interface FakeRainOptions {
+export interface LocalRainOptions {
   /** Model the single-use card behaviour. Default true — that is what production does. */
   readonly singleUseCards?: boolean;
   /** Rain's auth-hold multiplier. Default 1.2, rounded up. */
@@ -106,7 +108,7 @@ export interface FakeRainOptions {
   readonly transferSettleMs?: number;
 }
 
-export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
+export function localRainServer(options: LocalRainOptions = {}): LocalRainServer {
   const singleUse = options.singleUseCards ?? true;
   const buffer = options.buffer ?? 1.2;
   const transferSettleMs = options.transferSettleMs ?? 200;
@@ -117,10 +119,10 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
     privateKeyEncoding: { type: "pkcs8", format: "pem" },
   });
 
-  const cards = new Map<string, FakeCard>();
-  const transactions: FakeTransaction[] = [];
-  const paymentRoutes = new Map<string, FakePaymentRoute>();
-  const requests: FakeRequest[] = [];
+  const cards = new Map<string, LocalCard>();
+  const transactions: LocalTransaction[] = [];
+  const paymentRoutes = new Map<string, LocalPaymentRoute>();
+  const requests: LocalRequest[] = [];
   const idempotency = new Map<string, { status: number; body: unknown }>();
   let counter = options.seed ?? 1;
   let failures = { count: 0, status: 500, message: "simulated failure" };
@@ -207,7 +209,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       const id = uuid();
       // 16 digits: the `4242` test-card prefix plus a 12-digit body.
       const pan = `4242${String(counter).padStart(12, "0")}`;
-      const card: FakeCard = {
+      const card: LocalCard = {
         id,
         last4: pan.slice(-4),
         status: "active",
@@ -381,7 +383,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       if (destination?.address?.type !== "onchain" || !destination?.address?.address) {
         return bad(400, "body/destination/address must be { type: 'onchain', address }");
       }
-      const route: FakePaymentRoute = {
+      const route: LocalPaymentRoute = {
         id: uuid(),
         userId: body.userId,
         status: "created",
@@ -416,7 +418,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       const route = paymentRoutes.get(body?.paymentRouteId);
       if (!route) return bad(404, `Payment route ${body?.paymentRouteId} not found`);
       // The sandbox's real quirk: a decimal STRING in dollars, minimum "2".
-      // Integer cents here is a 400, and it must stay a 400 in the fake.
+      // Integer cents here is a 400, and it must stay a 400 in the local.
       if (typeof body?.amount !== "string" || !/^\d+(\.\d{1,2})?$/.test(body.amount)) {
         return bad(400, "body/amount must be a decimal string");
       }
@@ -446,11 +448,11 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
      * A transfer ripens on its own clock: `processing` until transferSettleMs
      * pass. The live sandbox never says "pending" — a fresh transfer is
      * `processing`, an undocumented status, for minutes (R-16). Completion has
-     * never been observed live; the fake ripens anyway so the happy path can
+     * never been observed live; the local ripens anyway so the happy path can
      * be rehearsed, but the completed row stays conservative: no postedAt,
      * because nobody has ever seen one on a transfer.
      */
-    const transferStatus = (t: FakeTransaction) =>
+    const transferStatus = (t: LocalTransaction) =>
       t.status !== "pending"
         ? t.status
         : Date.now() - t.createdAt >= transferSettleMs
@@ -460,7 +462,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
     /** The live transfer row, verbatim shape (R-16): decimal-string amounts in
      *  MAJOR units under source/destination/fees, no top-level amount, a $0.50
      *  Rain fee even on a $2 transfer, and `updatedAt` ticking while it runs. */
-    const renderTransfer = (t: FakeTransaction) => {
+    const renderTransfer = (t: LocalTransaction) => {
       const status = transferStatus(t);
       const dollars = (cents: number) => (cents / 100).toFixed(2);
       return {
@@ -491,7 +493,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
               : new Date().toISOString(),
           depositAddress: {
             type: "fiat",
-            beneficiaryName: "Fake Rain Beneficiary",
+            beneficiaryName: "Local Rain Beneficiary",
             accountNumber: "000123456789",
             routingNumber: "021000021",
           },
@@ -501,7 +503,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       };
     };
 
-    const renderTxn = (t: FakeTransaction) =>
+    const renderTxn = (t: LocalTransaction) =>
       t.type === "transfer"
         ? renderTransfer(t)
         : {
@@ -548,7 +550,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       return json(200, renderTxn(txn));
     }
 
-    return bad(404, `no fake route for ${method} ${path}`);
+    return bad(404, `no route for  `);
   };
 
   return {

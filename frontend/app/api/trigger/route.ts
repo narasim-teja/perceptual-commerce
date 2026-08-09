@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { trigger } from "@pc/app";
+import { trigger } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

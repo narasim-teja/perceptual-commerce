@@ -14,8 +14,8 @@ import { z } from "zod";
 
 /**
  * The transport surface we actually use. Deliberately narrower than `typeof
- * fetch`, which in Bun also carries `preconnect` and friends that no fake should
- * have to implement.
+ * fetch`, which in Bun also carries `preconnect` and friends that no in-process
+ * implementation should have to provide.
  */
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -30,9 +30,9 @@ export interface RainClientConfig {
   /**
    * Injectable transport. Production omits it and gets global `fetch`.
    *
-   * `fixtures.ts` passes a fake Rain server here, which lets the entire rail —
-   * real client, real crypto, real decrypt — run with no network and no cards
-   * burned. The code under test is the code we ship.
+   * `local-server.ts` passes a local Rain server here, which lets the entire
+   * rail (real client, real crypto, real decrypt) run with no network and no
+   * cards burned. The code under test is the code we ship.
    */
   readonly fetch?: FetchLike;
 }

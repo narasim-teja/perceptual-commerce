@@ -34,7 +34,7 @@ import type {
   TriggerContext,
 } from "./types.ts";
 
-/** What a perception source yields. Structurally identical to `@pc/perception`'s Observation. */
+/** What a perception source yields. Structurally identical to `@tessr/perception`'s Observation. */
 export interface PipelineObservation {
   readonly sourceId: string;
   readonly kind: TriggerContext["source"];

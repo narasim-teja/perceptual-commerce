@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { issuerTransactions, rainLedger, receipts, type LedgerRecord } from "@pc/app";
+import { issuerTransactions, rainLedger, receipts, type LedgerRecord } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

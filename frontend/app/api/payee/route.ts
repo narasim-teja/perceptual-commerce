@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { setPayeeAllowed } from "@pc/app";
+import { setPayeeAllowed } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

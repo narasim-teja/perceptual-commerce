@@ -306,7 +306,7 @@ export default function Page() {
           result={status?.lastResult ?? null}
           explorerBase={status?.explorerBase ?? "https://testnet.monadexplorer.com"}
           cardsMinted={status?.cardsMinted ?? null}
-          rail={status?.rail ?? "fake"}
+          rail={status?.rail ?? "local"}
           probing={probing}
           probeNote={probeNote}
           onProbe={probe}

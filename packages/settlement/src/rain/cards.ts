@@ -6,8 +6,8 @@
  * enforces all three at authorization, natively, with none of our code involved.
  */
 
-import type { Amount, IntentId } from "@pc/core";
-import { cardCeiling, mintAmountFor } from "@pc/core";
+import type { Amount, IntentId } from "@tessr/core";
+import { cardCeiling, mintAmountFor } from "@tessr/core";
 import type { RainClient, RainResult } from "./client.ts";
 import { issuingCard, scopedCardResponse, type IssuingCard, type ScopedCardResponse } from "./schemas.ts";
 import { decryptCardSecrets } from "./decrypt.ts";

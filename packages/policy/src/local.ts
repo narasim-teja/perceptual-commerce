@@ -13,8 +13,8 @@
  * plane rules on the four facts it is given, nothing stateful.
  */
 
-import { deny } from "@pc/core";
-import type { Authorization, PolicyPlane, SpendIntent } from "@pc/core";
+import { deny } from "@tessr/core";
+import type { Authorization, PolicyPlane, SpendIntent } from "@tessr/core";
 import type { DenyReason } from "./plane.ts";
 
 export interface LocalPolicyRules {

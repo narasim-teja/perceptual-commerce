@@ -1,7 +1,7 @@
 /**
- * Payment routes and the reverse fix, against the fake Rain server.
+ * Payment routes and the reverse fix, against the local Rain server.
  *
- * The fake reproduces the sandbox's real quirks on these endpoints: the 202
+ * The local reproduces the sandbox's real quirks on these endpoints: the 202
  * whose body is `{"success":true}` rather than the spec's simulationId shape,
  * the decimal-STRING amount with its minimum of "2", the transfer that
  * surfaces in the issuing ledger as `processing` (an undocumented status) with
@@ -12,7 +12,7 @@
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import { rainClient, type RainClient } from "../rain/client.ts";
-import { fakeRainServer, type FakeRainServer } from "../rain/fixtures.ts";
+import { localRainServer, type LocalRainServer } from "../rain/local-server.ts";
 import {
   createPaymentRoute,
   deletePaymentRoute,
@@ -24,16 +24,16 @@ import {
 import { getTransaction, listTransactions, simulateAuthorize, simulateReverse } from "../rain/simulate.ts";
 import { simulatePaymentRouteResponse, transferTransaction } from "../rain/schemas.ts";
 import { mintScopedCard } from "../rain/cards.ts";
-import { cents, type IntentId } from "@pc/core";
+import { cents, type IntentId } from "@tessr/core";
 
 const USER = "00000000-0000-4000-8000-0000000000ff";
 const DEST = `0x${"ab".repeat(20)}`;
 
-let server: FakeRainServer;
+let server: LocalRainServer;
 let client: RainClient;
 
 beforeEach(() => {
-  server = fakeRainServer({ transferSettleMs: 60 });
+  server = localRainServer({ transferSettleMs: 60 });
   client = rainClient({ apiKey: "test-key", userId: USER, fetch: server.fetch });
 });
 
@@ -80,7 +80,7 @@ describe("payment routes", () => {
   test("a malformed create is a 400, not a route", async () => {
     const result = await createPaymentRoute(client, {
       source: { currency: "usd", rail: "ach" },
-      // No on-chain address: the destination is unusable and the fake says so.
+      // No on-chain address: the destination is unusable and the local says so.
       destination: { currency: "usdc", rail: "base", address: { type: "onchain", address: "" } },
     });
     expect(result.ok).toBe(false);
@@ -109,7 +109,7 @@ describe("simulate — the async half", () => {
         simulationId: "sim-1",
         flow: "onramp",
         status: "accepted",
-        provider: "fake",
+        provider: "rain",
       }).success,
     ).toBe(true);
     // But not anything at all: an unrecognisable body is still a finding.
@@ -128,7 +128,7 @@ describe("simulate — the async half", () => {
     const garbage = await simulatePaymentRoute(client, route.id, "two");
     expect(garbage.ok).toBe(false);
 
-    // And the fake enforces the same rules server-side, so code that skips our
+    // And the local enforces the same rules server-side, so code that skips our
     // guard still meets the sandbox's answer: a number is a 400.
     const raw = await server.fetch("https://api-dev.raincards.xyz/v1/simulate/payment-routes", {
       method: "POST",
@@ -166,7 +166,7 @@ describe("simulate — the async half", () => {
     expect(first.transfer?.source?.amount).toBe("2.00");
     expect(first.transfer?.amount).toBeUndefined();
 
-    // The transfer completes on the fake's clock, which is what makes a
+    // The transfer completes on the local's clock, which is what makes a
     // bounded poll genuinely poll.
     await new Promise((resolve) => setTimeout(resolve, 80));
     const done = await getTransaction(client, first.id);
@@ -227,7 +227,7 @@ describe("reverse carries newAmount — the remainder, not the release", () => {
     const minted = await mintScopedCard(client, server.pem, {
       amount: cents(4299),
       allowedMccs: ["5411"],
-      idempotencyKey: `pc-reverse-${Math.random().toString(16).slice(2, 10)}` as IntentId,
+      idempotencyKey: `tessr-reverse-${Math.random().toString(16).slice(2, 10)}` as IntentId,
     });
     if (!minted.ok) throw new Error("mint failed");
     const auth = await simulateAuthorize(client, {

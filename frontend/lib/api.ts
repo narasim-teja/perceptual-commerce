@@ -53,7 +53,7 @@ export interface Receipt {
 
 export interface Status {
   config: Record<string, string>;
-  rail: "fake" | "rain";
+  rail: "local" | "rain";
   perception: {
     mode: "simulated" | "camera";
     threshold: number;

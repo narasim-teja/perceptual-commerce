@@ -16,8 +16,8 @@
  *     could not observe would be indistinguishable from one that did not happen.
  */
 
-import { deny } from "@pc/core";
-import type { Authorization, PolicyPlane, SpendIntent } from "@pc/core";
+import { deny } from "@tessr/core";
+import type { Authorization, PolicyPlane, SpendIntent } from "@tessr/core";
 import {
   createPublicClient,
   createWalletClient,

@@ -1,4 +1,4 @@
-# @pc/perception
+# @tessr/perception
 
 Pluggable signal sources. Exports the `PerceptionSource` interface and `Observation` type, the
 signal vocabulary (`stockLow`, `isStockLow` — the formatters and the matcher live in one file so

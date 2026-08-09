@@ -1,24 +1,24 @@
 /**
- * The settlement rail, exercised end to end against a fake Rain server that
+ * The settlement rail, exercised end to end against a local Rain server that
  * reproduces the sandbox's real quirks — including the ones that cost us cards to
  * discover.
  *
- * Zero network. Zero cards. The crypto is real: the fake RSA-decrypts our
+ * Zero network. Zero cards. The crypto is real: the local RSA-decrypts our
  * `sessionid` and AES-GCM encrypts a PAN under the recovered secret, so a bug in
  * `decrypt.ts` fails here rather than on stage.
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
-import { cents, type Authorization, type IntentId, type SpendIntent } from "@pc/core";
+import { cents, type Authorization, type IntentId, type SpendIntent } from "@tessr/core";
 import { rainClient } from "../rain/client.ts";
-import { fakeRainServer, type FakeRainServer } from "../rain/fixtures.ts";
+import { localRainServer, type LocalRainServer } from "../rain/local-server.ts";
 import { probeWrongCategory, rainCardRail, type RailEvent } from "../rain/rain-card-rail.ts";
 import { getCard } from "../rain/cards.ts";
 
 const NOW = Date.now();
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
 
-let server: FakeRainServer;
+let server: LocalRainServer;
 
 function makeRail(overrides: { simulatePurchase?: boolean } = {}) {
   const client = rainClient({
@@ -34,7 +34,7 @@ function makeRail(overrides: { simulatePurchase?: boolean } = {}) {
 
 function anIntent(over: Partial<SpendIntent> = {}): SpendIntent {
   return {
-    id: `pc-${Math.random().toString(16).slice(2, 14)}` as IntentId,
+    id: `tessr-${Math.random().toString(16).slice(2, 14)}` as IntentId,
     trigger: { source: "manual", signal: "bottle.stock < 3", confidence: 1 },
     proposal: { amount: cents(4299), payee },
     observedAt: NOW,
@@ -51,7 +51,7 @@ const allowFor = (intent: SpendIntent, over: Partial<Authorization> = {}): Autho
 });
 
 beforeEach(() => {
-  server = fakeRainServer();
+  server = localRainServer();
 });
 
 describe("the rail refuses without a valid authorization", () => {
@@ -107,14 +107,14 @@ describe("the happy path", () => {
   });
 
   test("the PAN decrypts and matches the plaintext last4", async () => {
-    // This is the real proof that decrypt.ts is correct: the fake encrypts with
+    // This is the real proof that decrypt.ts is correct: the local encrypts with
     // Rain's algorithm and we recover it with ours.
     const { client } = makeRail();
     const { mintScopedCard } = await import("../rain/cards.ts");
     const minted = await mintScopedCard(client, server.pem, {
       amount: cents(4299),
       allowedMccs: ["5411"],
-      idempotencyKey: "pc-decrypt-check" as IntentId,
+      idempotencyKey: "tessr-decrypt-check" as IntentId,
     });
 
     expect(minted.ok).toBe(true);
@@ -177,7 +177,7 @@ describe("idempotency — one signal, one card", () => {
 
   test("an unknown intent has no receipt", async () => {
     const { rail } = makeRail();
-    expect(await rail.receiptFor("pc-never-seen" as IntentId)).toBeNull();
+    expect(await rail.receiptFor("tessr-never-seen" as IntentId)).toBeNull();
   });
 });
 

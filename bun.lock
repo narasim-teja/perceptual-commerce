@@ -5,10 +5,10 @@
     "": {
       "name": "perceptual-commerce",
       "dependencies": {
-        "@pc/core": "workspace:*",
-        "@pc/perception": "workspace:*",
-        "@pc/policy": "workspace:*",
-        "@pc/settlement": "workspace:*",
+        "@tessr/core": "workspace:*",
+        "@tessr/perception": "workspace:*",
+        "@tessr/policy": "workspace:*",
+        "@tessr/settlement": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "^1.3.14",
@@ -23,11 +23,11 @@
       "dependencies": {
         "@base-ui/react": "^1.7.0",
         "@huggingface/transformers": "3.8.1",
-        "@pc/app": "workspace:*",
-        "@pc/core": "workspace:*",
-        "@pc/perception": "workspace:*",
-        "@pc/policy": "workspace:*",
-        "@pc/settlement": "workspace:*",
+        "@tessr/app": "workspace:*",
+        "@tessr/core": "workspace:*",
+        "@tessr/perception": "workspace:*",
+        "@tessr/policy": "workspace:*",
+        "@tessr/settlement": "workspace:*",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^1.30.0",
@@ -53,41 +53,41 @@
       },
     },
     "packages/app": {
-      "name": "@pc/app",
+      "name": "@tessr/app",
       "version": "0.0.0",
       "dependencies": {
-        "@pc/core": "workspace:*",
-        "@pc/perception": "workspace:*",
-        "@pc/policy": "workspace:*",
-        "@pc/settlement": "workspace:*",
+        "@tessr/core": "workspace:*",
+        "@tessr/perception": "workspace:*",
+        "@tessr/policy": "workspace:*",
+        "@tessr/settlement": "workspace:*",
         "hono": "^4.10.7",
         "zod": "^4.1.13",
       },
     },
     "packages/core": {
-      "name": "@pc/core",
+      "name": "@tessr/core",
       "version": "0.0.0",
     },
     "packages/perception": {
-      "name": "@pc/perception",
+      "name": "@tessr/perception",
       "version": "0.0.0",
       "dependencies": {
-        "@pc/core": "workspace:*",
+        "@tessr/core": "workspace:*",
       },
     },
     "packages/policy": {
-      "name": "@pc/policy",
+      "name": "@tessr/policy",
       "version": "0.0.0",
       "dependencies": {
-        "@pc/core": "workspace:*",
+        "@tessr/core": "workspace:*",
         "viem": "^2.40.2",
       },
     },
     "packages/settlement": {
-      "name": "@pc/settlement",
+      "name": "@tessr/settlement",
       "version": "0.0.0",
       "dependencies": {
-        "@pc/core": "workspace:*",
+        "@tessr/core": "workspace:*",
         "zod": "^4.1.13",
       },
     },
@@ -319,16 +319,6 @@
 
     "@nolyfill/is-core-module": ["@nolyfill/is-core-module@1.0.39", "", {}, "sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA=="],
 
-    "@pc/app": ["@pc/app@workspace:packages/app"],
-
-    "@pc/core": ["@pc/core@workspace:packages/core"],
-
-    "@pc/perception": ["@pc/perception@workspace:packages/perception"],
-
-    "@pc/policy": ["@pc/policy@workspace:packages/policy"],
-
-    "@pc/settlement": ["@pc/settlement@workspace:packages/settlement"],
-
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 
     "@protobufjs/base64": ["@protobufjs/base64@1.1.2", "", {}, "sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg=="],
@@ -390,6 +380,16 @@
     "@tailwindcss/oxide-win32-x64-msvc": ["@tailwindcss/oxide-win32-x64-msvc@4.3.3", "", { "os": "win32", "cpu": "x64" }, "sha512-yJ0pwIVc/nYeGoV02WtsN8KYyLQv7kyI2wDnkezyJlGGjkd4QLwDGAwl47YpPJeuI0M0ObaXGSPjvWDPeTPggw=="],
 
     "@tailwindcss/postcss": ["@tailwindcss/postcss@4.3.3", "", { "dependencies": { "@alloc/quick-lru": "^5.2.0", "@tailwindcss/node": "4.3.3", "@tailwindcss/oxide": "4.3.3", "postcss": "^8.5.16", "tailwindcss": "4.3.3" } }, "sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg=="],
+
+    "@tessr/app": ["@tessr/app@workspace:packages/app"],
+
+    "@tessr/core": ["@tessr/core@workspace:packages/core"],
+
+    "@tessr/perception": ["@tessr/perception@workspace:packages/perception"],
+
+    "@tessr/policy": ["@tessr/policy@workspace:packages/policy"],
+
+    "@tessr/settlement": ["@tessr/settlement@workspace:packages/settlement"],
 
     "@ts-morph/common": ["@ts-morph/common@0.27.0", "", { "dependencies": { "fast-glob": "^3.3.3", "minimatch": "^10.0.1", "path-browserify": "^1.0.1" } }, "sha512-Wf29UqxWDpc+i61k3oIOzcUfQt79PIT9y/MWfAGlrkjg6lBC1hwDECLXPVJAhWjiGbfBCxZd65F/LIZF3+jeJQ=="],
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pc/app",
+  "name": "@tessr/app",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,10 +12,10 @@
     "demo": "bun run src/restock.ts"
   },
   "dependencies": {
-    "@pc/core": "workspace:*",
-    "@pc/perception": "workspace:*",
-    "@pc/policy": "workspace:*",
-    "@pc/settlement": "workspace:*",
+    "@tessr/core": "workspace:*",
+    "@tessr/perception": "workspace:*",
+    "@tessr/policy": "workspace:*",
+    "@tessr/settlement": "workspace:*",
     "hono": "^4.10.7",
     "zod": "^4.1.13"
   }

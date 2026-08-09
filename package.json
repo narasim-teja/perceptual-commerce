@@ -31,10 +31,10 @@
     "example": "bun run examples/quickstart.ts"
   },
   "dependencies": {
-    "@pc/core": "workspace:*",
-    "@pc/perception": "workspace:*",
-    "@pc/policy": "workspace:*",
-    "@pc/settlement": "workspace:*"
+    "@tessr/core": "workspace:*",
+    "@tessr/perception": "workspace:*",
+    "@tessr/policy": "workspace:*",
+    "@tessr/settlement": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

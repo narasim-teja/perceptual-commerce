@@ -1,4 +1,4 @@
-# @pc/app
+# @tessr/app
 
 The reference demo: restock. `restock.ts` composes the three planes into one loop — this is the
 only file in the repo that knows the word "shelf". `config.ts` loads and zod-validates the
@@ -14,7 +14,7 @@ const loop = buildRestockLoop({ onEvent: (e) => console.log(e.stage, e.detail) }
 await loop.trigger();   // one observation, run all the way through
 ```
 
-`RAIL=fake` is the default: the whole loop runs against the in-process Rain server, no network, no
+`RAIL=local` is the default: the whole loop runs against the in-process Rain server, no network, no
 cards. Swap the source and the payee and you have a different product on the same spine.
 
 **What app can never do: reach settlement directly.** Every spend goes observation → verify → gate

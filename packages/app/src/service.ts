@@ -14,8 +14,8 @@
  * where the loop would need to live somewhere with actual persistence.
  */
 
-import { describeError, type PipelineEvent, type Receipt, type SpendResult } from "@pc/core";
-import { policyAbi, reasonFromCode } from "@pc/policy";
+import { describeError, type PipelineEvent, type Receipt, type SpendResult } from "@tessr/core";
+import { policyAbi, reasonFromCode } from "@tessr/policy";
 import {
   createPaymentRoute,
   getTransaction,
@@ -23,7 +23,7 @@ import {
   onrampRoute,
   probeWrongCategory,
   simulatePaymentRoute,
-} from "@pc/settlement";
+} from "@tessr/settlement";
 import { createPublicClient, createWalletClient, http, keccak256, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
@@ -74,7 +74,7 @@ interface Service {
   lastResult: SpendResult | null;
   nextEventId: number;
   /**
-   * The payment route the fake rail built for itself, so RAIL=fake rehearses
+   * The payment route the local rail built for itself, so RAIL=local rehearses
    * the funding beat without configuration. On the live rail this stays null:
    * routes are immutable and budgeted, so the one real route is created once
    * by scripts/payment-route.ts and arrives as RAIN_PAYMENT_ROUTE_ID.
@@ -345,11 +345,11 @@ export function snapshot() {
       amount: service.config.DEMO_AMOUNT_USD_CENTS,
     },
     explorerBase: "https://testnet.monadexplorer.com",
-    // The fake server counts its own cards exactly; on the live rail, every
+    // The local server counts its own cards exactly; on the live rail, every
     // settled intent consumed one minted card, so the record's settled rows are
     // the count. Either way the number holds still when the gate denies, which
     // is the beat the counter exists for.
-    cardsMinted: service.loop.fake ? service.loop.fake.cards.size : receipts().length,
+    cardsMinted: service.loop.local ? service.loop.local.cards.size : receipts().length,
     events: service.events.slice(-60),
     lastResult: service.lastResult
       ? service.lastResult.ok
@@ -477,7 +477,7 @@ const FUND_AMOUNT = "2";
  * watch it land as a transfer on Rain's issuing ledger.
  *
  * The route is the immutable one from RAIN_PAYMENT_ROUTE_ID (created once by
- * scripts/payment-route.ts). On RAIL=fake the service builds its own route against the fixture
+ * scripts/payment-route.ts). On RAIL=local the service builds its own route against the fixture
  * so the beat rehearses offline, end to end, with the same record rows:
  * funding requested, transfer visible, transfer completed.
  *
@@ -494,7 +494,7 @@ export async function fundBudget(): Promise<FundOutcome> {
   const { config, loop } = service;
   const client = loop.rainClient;
 
-  // The configured route id names a route on the LIVE sandbox. The fake rail
+  // The configured route id names a route on the LIVE sandbox. The local rail
   // cannot know it, so it only ever uses the route it provisioned for itself —
   // otherwise a filled-in .env breaks the offline rehearsal with a 404.
   let routeId = config.RAIL === "rain" ? (config.RAIN_PAYMENT_ROUTE_ID ?? null) : service.fundingRouteId;
@@ -506,7 +506,7 @@ export async function fundBudget(): Promise<FundOutcome> {
           "no RAIN_PAYMENT_ROUTE_ID configured. Create the one immutable route with `bun run route:create --address 0x… --confirm` and put its id in .env.",
       };
     }
-    // The fake rail provisions its own route, once per process.
+    // The local rail provisions its own route, once per process.
     const created = await createPaymentRoute(client, onrampRoute(`0x${"0".repeat(39)}1`));
     if (!created.ok) return { ok: false, error: created.error.message };
     routeId = created.value.id;
@@ -540,11 +540,11 @@ export async function fundBudget(): Promise<FundOutcome> {
     return { ok: false, error: sim.error.message };
   }
 
-  // Bounded polling. The fake ripens in ~200ms; the live sandbox parks the
+  // Bounded polling. The local ripens in ~200ms; the live sandbox parks the
   // transfer in `processing` for minutes (R-16), so the poll's job is to see
   // it appear — and to give completion a chance, not to demand it.
-  const attempts = config.RAIL === "fake" ? 12 : 10;
-  const delayMs = config.RAIL === "fake" ? 100 : 1500;
+  const attempts = config.RAIL === "local" ? 12 : 10;
+  const delayMs = config.RAIL === "local" ? 100 : 1500;
   let transferId: string | null = null;
   let lastStatus = "processing";
   let announced = false;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fundBudget } from "@pc/app";
+import { fundBudget } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

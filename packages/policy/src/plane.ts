@@ -6,7 +6,7 @@
  * for that (docs/02-technical.md §5.1). Do not describe it otherwise on stage.
  */
 
-import type { Amount, IntentId, PayeeRef, PolicyPlane } from "@pc/core";
+import type { Amount, IntentId, PayeeRef, PolicyPlane } from "@tessr/core";
 
 export type { PolicyPlane };
 

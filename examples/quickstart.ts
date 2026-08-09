@@ -3,22 +3,22 @@
  * network, no chain, no cards. Run it with `bun run example`.
  *
  * Every plane here is the swappable one: `localPolicy` becomes the Monad
- * contract, the fake Rain server becomes the sandbox, the manual camera becomes
+ * contract, the local Rain server becomes the sandbox, the manual camera becomes
  * a real one, and this file's shape does not change.
  */
 
-import { createCommerce, usd } from "@pc/core";
-import { manualSource } from "@pc/perception";
-import { localPolicy } from "@pc/policy";
-import { fakeRainServer, rainCardRail, rainClient } from "@pc/settlement";
+import { createCommerce, usd } from "@tessr/core";
+import { manualSource } from "@tessr/perception";
+import { localPolicy } from "@tessr/policy";
+import { localRainServer, rainCardRail, rainClient } from "@tessr/settlement";
 
 const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
 
 // POLICY: in-memory here, the onchain contract in production. Same interface.
 const policy = localPolicy({ maxAmountCents: 10_000, allowedPayees: [payee.id], allowedMccs: [payee.mcc] });
 
-// SETTLEMENT: the real client and rail, against an in-process fake Rain server.
-const server = fakeRainServer();
+// SETTLEMENT: the real client and rail, against Rain's server half in process.
+const server = localRainServer();
 const client = rainClient({ apiKey: "example", userId: "00000000-0000-4000-8000-000000000001", fetch: server.fetch });
 const rail = rainCardRail({ client, pem: server.pem, simulatePurchase: true });
 

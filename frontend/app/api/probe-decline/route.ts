@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { probeOutcome } from "@pc/app";
+import { probeOutcome } from "@tessr/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

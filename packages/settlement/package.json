@@ -1,5 +1,5 @@
 {
-  "name": "@pc/settlement",
+  "name": "@tessr/settlement",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "./rain": "./src/rain/index.ts"
   },
   "dependencies": {
-    "@pc/core": "workspace:*",
+    "@tessr/core": "workspace:*",
     "zod": "^4.1.13"
   }
 }

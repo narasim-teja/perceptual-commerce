@@ -9,17 +9,17 @@
  * Read the `buildRestockLoop` body top to bottom: it should read like the pitch.
  */
 
-import { cents, watch, type Pipeline, type PipelineEvent, type SpendResult } from "@pc/core";
-import { isStockLow, manualSource, stockLow, type ManualSource } from "@pc/perception";
-import { monadPolicyPlane } from "@pc/policy";
+import { cents, watch, type Pipeline, type PipelineEvent, type SpendResult } from "@tessr/core";
+import { isStockLow, manualSource, stockLow, type ManualSource } from "@tessr/perception";
+import { monadPolicyPlane } from "@tessr/policy";
 import {
-  fakeRainServer,
+  localRainServer,
   rainCardRail,
   rainClient,
-  type FakeRainServer,
+  type LocalRainServer,
   type MintedCard,
   type RainClient,
-} from "@pc/settlement";
+} from "@tessr/settlement";
 import { loadConfig, rulingKey, type Config } from "./config.ts";
 
 /** Suppliers we are willing to pay. The `.verify()` guard checks against this. */
@@ -29,8 +29,8 @@ export interface RestockLoop {
   readonly pipeline: Pipeline;
   readonly camera: ManualSource;
   readonly config: Config;
-  /** Non-null when running against the fake — exposes what the fake server saw. */
-  readonly fake: FakeRainServer | null;
+  /** Non-null when running against the local — exposes what the local server saw. */
+  readonly local: LocalRainServer | null;
   /** For demo beats that sit outside the spend path (the decline probe, reads). */
   readonly rainClient: RainClient;
   /** Fire one observation and run it all the way through. */
@@ -76,18 +76,18 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
   });
 
   // ─── SETTLEMENT ────────────────────────────────────────────────────────────
-  // `fake` is the default: the whole loop runs with no network and no cards.
-  const fake = config.RAIL === "fake" ? fakeRainServer() : null;
+  // `local` is the default: the whole loop runs with no network and no cards.
+  const local = config.RAIL === "local" ? localRainServer() : null;
   const client = rainClient({
-    apiKey: fake ? "fake-key" : config.RAIN_API_KEY,
+    apiKey: local ? "local-key" : config.RAIN_API_KEY,
     userId: config.RAIN_USER_ID,
     baseUrl: config.RAIN_BASE_URL,
     ...(config.RAIN_CONTRACT_ID ? { contractId: config.RAIN_CONTRACT_ID } : {}),
-    ...(fake ? { fetch: fake.fetch } : {}),
+    ...(local ? { fetch: local.fetch } : {}),
   });
   const rail = rainCardRail({
     client,
-    pem: fake ? fake.pem : config.rainPublicKeyPem!,
+    pem: local ? local.pem : config.rainPublicKeyPem!,
     // There is no real merchant in the room, so we drive the purchase ourselves.
     simulatePurchase: true,
     ...(options.beforePurchase ? { beforePurchase: options.beforePurchase } : {}),
@@ -121,7 +121,7 @@ export function buildRestockLoop(options: RestockOptions = {}): RestockLoop {
     pipeline,
     camera,
     config,
-    fake,
+    local,
     rainClient: client,
     async trigger(over = {}) {
       return pipeline.push({
@@ -154,8 +154,8 @@ if (import.meta.main) {
   for (const [k, v] of Object.entries(describeConfig(config))) {
     console.log(`  ${k.padEnd(16)} ${v}`);
   }
-  if (config.RAIL === "fake") {
-    console.log("\n  RAIL=fake — no network, no cards. Set RAIL=rain for the real thing.");
+  if (config.RAIL === "local") {
+    console.log("\n  RAIL=local. No network, no cards. Set RAIL=rain for the real thing.");
   }
   console.log("");
 
@@ -185,7 +185,7 @@ if (import.meta.main) {
     console.log(`  ✔ card ••••${result.receipt.last4}  txn ${result.receipt.transactionId}`);
     console.log(`    onchain ruling: ${result.receipt.onchainRef ?? "(none)"}`);
   } else if (result) {
-    const { describeError } = await import("@pc/core");
+    const { describeError } = await import("@tessr/core");
     console.log(`  ✘ ${describeError(result.error)}`);
   } else {
     console.log("  (no intent was produced)");

@@ -1,4 +1,4 @@
-# @pc/policy
+# @tessr/policy
 
 The policy plane: the only thing that can authorize. Exports the `PolicyPlane` interface and its
 deny vocabulary, `monadPolicyPlane` (the viem client for `contract/src/Policy.sol`, the onchain

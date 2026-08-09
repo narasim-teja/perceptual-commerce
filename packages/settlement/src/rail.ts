@@ -12,9 +12,9 @@
  * repo cannot back, and the swappability it was standing in for is already
  * carried by the interface: anything that can turn an Authorization into a
  * Receipt implements this, and the pipeline, the gate and the contract do not
- * move when it does. The seam does not need a fake occupant to be real.
+ * move when it does. The seam does not need a stand-in occupant to be real.
  */
 
-import type { SettlementRail } from "@pc/core";
+import type { SettlementRail } from "@tessr/core";
 
 export type { SettlementRail };

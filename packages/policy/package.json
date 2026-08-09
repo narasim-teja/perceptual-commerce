@@ -1,5 +1,5 @@
 {
-  "name": "@pc/policy",
+  "name": "@tessr/policy",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "test": "forge test --root contract -vv"
   },
   "dependencies": {
-    "@pc/core": "workspace:*",
+    "@tessr/core": "workspace:*",
     "viem": "^2.40.2"
   }
 }

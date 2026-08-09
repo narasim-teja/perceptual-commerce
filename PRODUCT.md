@@ -67,7 +67,7 @@ amount, merchant-category allowlist, and expiry natively at authorization time.
   observation payload; nothing downstream can tell them apart.
 - Perception runs client-side and has no path to settlement. That is the trust boundary,
   and the surface must make it visible rather than assert it.
-- `RAIL=fake` is the default and runs the whole loop with no network and no real cards.
+- `RAIL=local` is the default and runs the whole loop with no network and no real cards.
   `RAIL=rain` mints against the Rain sandbox. No real-funds credentials exist anywhere
   in this project.
 - The kill switch and the payee allowlist are real writes against a deployed contract on
@@ -82,7 +82,7 @@ amount, merchant-category allowlist, and expiry natively at authorization time.
 ## Brand Commitments
 
 - Product name is **Tessr**: capitalised in prose, lowercase in every interface mark, and
-  rendered `TESSR` wherever `.bit` uppercases it. The repository directory and the `@pc/*`
+  rendered `TESSR` wherever `.bit` uppercases it. The repository directory and the `@tessr/*`
   workspace package names were deliberately left alone; they are not user-facing.
 - The repository is <https://github.com/narasim-teja/tessr>. Nothing else links to the project.
 - Never name a hackathon, an event, or a sponsor relationship on any surface. Rain is described
