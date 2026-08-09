@@ -80,20 +80,33 @@ The camera is the hook. The authorization spine is the substance.
 packages/
   core/         domain types, branded money, the closed error union,
                 the fail-closed authorize gate, idempotency, pipeline
-  perception/   pluggable signal sources
+  perception/   the source interface, the manual source, and the signal vocabulary
   policy/       the onchain plane: Policy.sol + the viem client
-  settlement/   pluggable rails
+  settlement/   the rail interface and the Rain card rail
   app/          the reference demo, wiring the three planes together
-frontend/       Next.js dashboard — the demo control surface
+frontend/       Next.js console — the demo control surface, and where the vision
+                layer actually runs: lib/perception.ts samples the frames,
+                lib/detect/ holds the swappable detectors
 scripts/        deploy and inspect the policy contract
 ```
+
+The vision layer lives in the browser on purpose. A perception source constructed in the server
+process would sit on the same side of the trust boundary as the Rain credential and the ruling key,
+which is the opposite of what the whole design argues. So `packages/perception/src/vision.ts` is
+deliberately unimplemented and says so, and the browser posts an observation through one door.
 
 ## Getting started
 
 ```bash
 bun install
-cp .env.example .env        # fill in credentials
+cp .env.example .env
 ```
+
+`.env.example` is ordered so the first setting answers the rest. `RAIL=fake` is the default and runs
+the entire loop against an in-process Rain server: no network, no credentials, no cards created. Every
+stage still emits, the contract is still read and ruled on, and a receipt still comes back. Fill in
+the `RAIN_*` block only when you flip to `RAIL=rain`, which mints a real scoped card in the Rain
+sandbox. Nothing downstream can tell the two apart.
 
 ```bash
 bun test                    # unit tests
