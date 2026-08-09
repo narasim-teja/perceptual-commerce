@@ -122,10 +122,36 @@ export const spendTransaction = z
   .loose();
 
 /**
+ * A transfer's status, as the sandbox actually speaks it.
+ *
+ * The spec promises `pending`/`completed`. The live sandbox answers
+ * `processing` — for minutes, with `updatedAt` ticking and completion never
+ * observed inside any sane poll (FEEDBACK R-16). The enum documents the
+ * vocabulary we have seen; the string fallback means a value we have NOT seen
+ * degrades to "here is what they said" rather than rejecting the ledger.
+ */
+export const transferStatus = z.enum(["processing", "pending", "completed"]).or(z.string());
+
+/**
+ * One endpoint of a transfer: `{ amount: "2.00", currency: "usd", rail: "ach" }`.
+ * The amount is a decimal STRING in MAJOR units — the payment-route family's
+ * convention, not the integer cents used everywhere else (R-16).
+ */
+const transferEndpoint = z
+  .object({
+    amount: z.string().optional(),
+    currency: z.string().optional(),
+    rail: z.string().optional(),
+  })
+  .loose();
+
+/**
  * A `transfer` row — what a payment-route deposit becomes once it reaches the
- * issuing ledger. Everything inside is optional on purpose: the spec nests the
- * payload under `transfer` but we have not pinned its full sandbox shape, and a
- * funding read must degrade to "it exists" rather than reject the ledger.
+ * issuing ledger. Pinned to the LIVE sandbox shape (measured 2026-08-09,
+ * FEEDBACK R-16): the amount lives under `source` as a decimal string, there is
+ * no top-level amount, `postedAt` is absent while processing, and a Rain fee
+ * rides along. Everything stays optional so a funding read degrades to "it
+ * exists" rather than rejecting the ledger.
  */
 export const transferTransaction = z
   .object({
@@ -133,11 +159,18 @@ export const transferTransaction = z
     type: z.literal("transfer"),
     transfer: z
       .object({
+        source: transferEndpoint.optional(),
+        destination: transferEndpoint.optional(),
+        fees: z.unknown().optional(),
+        status: transferStatus.optional(),
+        createdAt: z.string().optional(),
+        updatedAt: z.string().optional(),
+        postedAt: z.string().optional(),
+        exchangeRate: z.number().optional(),
+        depositAddress: z.unknown().optional(),
+        // The spec-era flat fields, kept so a spec-shaped row still parses.
         amount: z.union([z.number(), z.string()]).optional(),
         currency: z.string().optional(),
-        status: z.string().optional(),
-        createdAt: z.string().optional(),
-        postedAt: z.string().optional(),
       })
       .loose()
       .optional(),
@@ -191,15 +224,23 @@ export const paymentRouteList = z.array(paymentRoute);
 /**
  * POST /simulate/payment-routes — 202, not 200: the deposit is queued, and the
  * evidence arrives later as a `transfer` row in GET /issuing/transactions.
+ *
+ * The spec declares `{ simulationId, flow, status, provider }`. The live
+ * sandbox answers `{ "success": true }` — the same failure class as the
+ * collateral endpoint (R-08). Accept either, never rejecting a healthy live
+ * response. FEEDBACK R-16.
  */
-export const simulatePaymentRouteResponse = z
-  .object({
-    simulationId: z.string(),
-    flow: z.string().optional(),
-    status: z.string(),
-    provider: z.string().optional(),
-  })
-  .loose();
+export const simulatePaymentRouteResponse = z.union([
+  z.object({ success: z.boolean() }).loose(),
+  z
+    .object({
+      simulationId: z.string(),
+      flow: z.string().optional(),
+      status: z.string(),
+      provider: z.string().optional(),
+    })
+    .loose(),
+]);
 
 /** Simulated decline reasons Rain accepts on the authorize endpoint. */
 export const DECLINE_REASONS = [

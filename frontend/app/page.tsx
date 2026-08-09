@@ -283,9 +283,12 @@ export default function Page() {
     setFundNote(null);
     try {
       const result = await postFund();
+      const ref = result.transferId ? shortHash(result.transferId, 8, 4) : "";
       setFundNote(
         result.ok
-          ? `transfer ${result.transferId ? shortHash(result.transferId, 8, 4) : ""} completed on rain's ledger.`
+          ? result.status === "completed"
+            ? `transfer ${ref} completed on rain's ledger.`
+            : `transfer ${ref} visible on rain's ledger, status ${result.status ?? "processing"}. the simulated ach completes on its own clock.`
           : (result.error ?? "the funding flow failed"),
       );
     } catch (e) {

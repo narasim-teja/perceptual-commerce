@@ -11,9 +11,11 @@
  * no PATCH, only DELETE. The demo creates exactly one (spikes/07) and stores it
  * as RAIN_PAYMENT_ROUTE_ID.
  *
- * `simulatePaymentRoute` is the async half: it answers 202 accepted, and the
- * evidence arrives later as a `transfer` row in GET /issuing/transactions.
- * Unlike collateral funding (R-08), the transfer IS visible there.
+ * `simulatePaymentRoute` is the async half: it answers 202 `{"success":true}`
+ * (not the spec's simulationId shape — R-16), and the evidence arrives later as
+ * a `transfer` row in GET /issuing/transactions. Unlike collateral funding
+ * (R-08), the transfer IS visible there — in `processing`, an undocumented
+ * status it holds for minutes while the simulated ACH runs its own clock.
  */
 
 import { z } from "zod";

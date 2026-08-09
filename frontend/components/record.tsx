@@ -48,7 +48,9 @@ function markFor(event: FeedEvent): {
       : { label: "not declined", weight: "refuse" };
   }
   // The funding beat: treasury moves down the payment route and lands as a
-  // transfer on Rain's ledger. Quiet until it completes; loud if it does not.
+  // transfer on Rain's ledger. Visibility is the payoff, so the settled row is
+  // struck when the transfer appears, whatever its status; loud only when
+  // nothing ever appears.
   if (event.signal?.startsWith("funding:")) {
     if (event.stage === "settled") return { label: "funded", weight: "permit" };
     if (event.stage === "rejected") return { label: "not funded", weight: "refuse" };

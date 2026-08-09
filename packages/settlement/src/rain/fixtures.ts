@@ -17,9 +17,11 @@
  *   - `completionReason` comes back lowercase                     (R-12)
  *   - merchant strings are space-padded to ISO-8583 widths        (R-13)
  *   - `companyId` is absent on scoped cards                       (R-10)
- *   - `/simulate/payment-routes` answers 202 and demands a string
+ *   - `/simulate/payment-routes` answers 202 `{"success":true}` —
+ *     not the spec's simulationId shape — and demands a string
  *     amount in dollars, minimum "2"; the deposit then surfaces as
- *     a `transfer` that goes pending → completed on its own clock
+ *     a `transfer` in `processing`, amounts as decimal strings
+ *     under `source`, ripening to completed on its own clock (R-16)
  *   - `reverse` takes `newAmount` = what REMAINS authorized; `{}`
  *     is a full reversal, and settle-style `amount` is rejected
  *
@@ -75,7 +77,7 @@ export interface FakeTransaction {
   mcc?: string;
   merchantName?: string;
   declinedReason?: string;
-  /** Epoch ms. Transfers ripen against this: pending until `transferSettleMs` pass. */
+  /** Epoch ms. Transfers ripen against this: `processing` until `transferSettleMs` pass. */
   createdAt: number;
 }
 
@@ -96,9 +98,10 @@ export interface FakeRainOptions {
   /** Deterministic ids, so test output is stable. */
   readonly seed?: number;
   /**
-   * How long a payment-route transfer stays `pending` before it reads as
+   * How long a payment-route transfer stays `processing` before it reads as
    * `completed`. Default 200ms: long enough that a poll genuinely polls,
-   * short enough that a test does not care.
+   * short enough that a test does not care. The live sandbox's clock is
+   * minutes, and completion has never actually been observed (R-16).
    */
   readonly transferSettleMs?: number;
 }
@@ -426,8 +429,9 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
         status: "pending",
         createdAt: Date.now(),
       });
-      // 202: the deposit is queued. The evidence is the transfer row, later.
-      return json(202, { simulationId: uuid(), flow: "onramp", status: "accepted", provider: "fake" });
+      // 202 { success: true } — NOT the spec's simulationId shape. The live
+      // sandbox answers exactly this (R-16). The evidence is the transfer row.
+      return json(202, { success: true });
     }
 
     // ─── collateral ──────────────────────────────────────────────────────────
@@ -438,25 +442,68 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
     }
 
     // ─── transactions ────────────────────────────────────────────────────────
-    /** A transfer ripens on its own clock: pending until transferSettleMs pass. */
+    /**
+     * A transfer ripens on its own clock: `processing` until transferSettleMs
+     * pass. The live sandbox never says "pending" — a fresh transfer is
+     * `processing`, an undocumented status, for minutes (R-16). Completion has
+     * never been observed live; the fake ripens anyway so the happy path can
+     * be rehearsed, but the completed row stays conservative: no postedAt,
+     * because nobody has ever seen one on a transfer.
+     */
     const transferStatus = (t: FakeTransaction) =>
-      t.status === "pending" && Date.now() - t.createdAt >= transferSettleMs ? "completed" : t.status;
+      t.status !== "pending"
+        ? t.status
+        : Date.now() - t.createdAt >= transferSettleMs
+          ? "completed"
+          : "processing";
+
+    /** The live transfer row, verbatim shape (R-16): decimal-string amounts in
+     *  MAJOR units under source/destination/fees, no top-level amount, a $0.50
+     *  Rain fee even on a $2 transfer, and `updatedAt` ticking while it runs. */
+    const renderTransfer = (t: FakeTransaction) => {
+      const status = transferStatus(t);
+      const dollars = (cents: number) => (cents / 100).toFixed(2);
+      return {
+        id: t.id,
+        type: "transfer",
+        transfer: {
+          source: {
+            amount: dollars(t.amount),
+            currency: "usd",
+            rail: "ach",
+            referenceId: String(3500000 + transactions.indexOf(t)),
+          },
+          destination: {
+            currency: "usdc",
+            rail: "base",
+            address: { type: "onchain", address: `0x${"9d".repeat(20)}` },
+          },
+          fees: {
+            rain: { currency: "usd", amount: "0.50", amountUSD: "0.50" },
+            developer: { currency: "usd", amount: "0.00", amountUSD: "0.00" },
+            sender: { currency: "usd", amount: "0.00", amountUSD: "0.00" },
+          },
+          status,
+          createdAt: new Date(t.createdAt).toISOString(),
+          updatedAt:
+            status === "completed"
+              ? new Date(t.createdAt + transferSettleMs).toISOString()
+              : new Date().toISOString(),
+          depositAddress: {
+            type: "fiat",
+            beneficiaryName: "Fake Rain Beneficiary",
+            accountNumber: "000123456789",
+            routingNumber: "021000021",
+          },
+          exchangeRate: 1,
+          userId: "00000000-0000-4000-8000-0000000000ff",
+        },
+      };
+    };
 
     const renderTxn = (t: FakeTransaction) =>
       t.type === "transfer"
-        ? {
-            id: t.id,
-            type: "transfer",
-            transfer: {
-              amount: t.amount,
-              currency: "usd", // R-12: lowercase
-              status: transferStatus(t),
-              createdAt: new Date(t.createdAt).toISOString(),
-              ...(transferStatus(t) === "completed"
-                ? { postedAt: new Date(t.createdAt + transferSettleMs).toISOString() }
-                : {}),
-            },
-          }
+        ? renderTransfer(t)
         : {
             id: t.id,
             type: "spend",

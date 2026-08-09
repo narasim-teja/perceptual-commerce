@@ -1,10 +1,13 @@
 /**
  * Payment routes and the reverse fix, against the fake Rain server.
  *
- * The fake reproduces the sandbox's real quirks on these endpoints: 202 on
- * simulate, the decimal-STRING amount with its minimum of "2", the transfer
- * that surfaces in the issuing ledger pending and completes on its own clock,
- * and `reverse` taking `newAmount` (the remainder) rather than an amount.
+ * The fake reproduces the sandbox's real quirks on these endpoints: the 202
+ * whose body is `{"success":true}` rather than the spec's simulationId shape,
+ * the decimal-STRING amount with its minimum of "2", the transfer that
+ * surfaces in the issuing ledger as `processing` (an undocumented status) with
+ * decimal-string amounts under `source` and completes on its own clock
+ * (R-16), and `reverse` taking `newAmount` (the remainder) rather than an
+ * amount.
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
@@ -19,6 +22,7 @@ import {
   simulatePaymentRoute,
 } from "../rain/routes.ts";
 import { getTransaction, listTransactions, simulateAuthorize, simulateReverse } from "../rain/simulate.ts";
+import { simulatePaymentRouteResponse, transferTransaction } from "../rain/schemas.ts";
 import { mintScopedCard } from "../rain/cards.ts";
 import { cents, type IntentId } from "@pc/core";
 
@@ -86,14 +90,30 @@ describe("payment routes", () => {
 });
 
 describe("simulate — the async half", () => {
-  test("a valid amount is accepted with a 202, never a 200", async () => {
+  test('a valid amount is accepted with a 202 whose body is {"success":true}', async () => {
     const route = await makeRoute();
     const result = await simulatePaymentRoute(client, route.id, "2");
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.status).toBe(202);
-    expect(result.value.status).toBe("accepted");
-    expect(result.value.simulationId).toBeTruthy();
+    // The live body, verbatim — NOT the spec's { simulationId, ... } (R-16).
+    expect(result.value).toEqual({ success: true });
+  });
+
+  test('the schema tolerates both the live {"success":true} and the spec shape', () => {
+    // The live sandbox's actual answer.
+    expect(simulatePaymentRouteResponse.safeParse({ success: true }).success).toBe(true);
+    // The spec's promised shape, in case the sandbox ever starts honouring it.
+    expect(
+      simulatePaymentRouteResponse.safeParse({
+        simulationId: "sim-1",
+        flow: "onramp",
+        status: "accepted",
+        provider: "fake",
+      }).success,
+    ).toBe(true);
+    // But not anything at all: an unrecognisable body is still a finding.
+    expect(simulatePaymentRouteResponse.safeParse({ accepted: 1 }).success).toBe(false);
   });
 
   test('the amount is a decimal string in DOLLARS with a minimum of "2"', async () => {
@@ -124,19 +144,27 @@ describe("simulate — the async half", () => {
     if (!result.ok) expect(result.status).toBe(404);
   });
 
-  test("the transfer surfaces in the issuing ledger, pending, then completes", async () => {
+  test("the transfer surfaces in the issuing ledger as processing, then completes", async () => {
     const route = await makeRoute();
     await simulatePaymentRoute(client, route.id, "2");
 
-    const pending = await listTransactions(client, { type: "transfer" });
-    expect(pending.ok).toBe(true);
-    if (!pending.ok) return;
-    expect(pending.value).toHaveLength(1);
-    const first = pending.value[0] as { id: string; type: string; transfer?: { status?: string; amount?: number } };
+    const fresh = await listTransactions(client, { type: "transfer" });
+    expect(fresh.ok).toBe(true);
+    if (!fresh.ok) return;
+    expect(fresh.value).toHaveLength(1);
+    type TransferRow = {
+      id: string;
+      type: string;
+      transfer?: { status?: string; amount?: unknown; source?: { amount?: string } };
+    };
+    const first = fresh.value[0] as TransferRow;
     expect(first.type).toBe("transfer");
-    expect(first.transfer?.status).toBe("pending");
-    // "2" dollars became 200 cents on the ledger.
-    expect(first.transfer?.amount).toBe(200);
+    // The undocumented live status — not the spec's "pending" (R-16).
+    expect(first.transfer?.status).toBe("processing");
+    // "2" dollars stays a decimal string in MAJOR units, under source; there
+    // is no top-level amount on the live row.
+    expect(first.transfer?.source?.amount).toBe("2.00");
+    expect(first.transfer?.amount).toBeUndefined();
 
     // The transfer completes on the fake's clock, which is what makes a
     // bounded poll genuinely poll.
@@ -144,9 +172,45 @@ describe("simulate — the async half", () => {
     const done = await getTransaction(client, first.id);
     expect(done.ok).toBe(true);
     if (!done.ok) return;
-    const row = done.value as { transfer?: { status?: string; postedAt?: string } };
+    const row = done.value as { transfer?: { status?: string } };
     expect(row.transfer?.status).toBe("completed");
-    expect(row.transfer?.postedAt).toBeTruthy();
+  });
+
+  test("the live transfer row, verbatim, parses through the schema", () => {
+    // The row the sandbox actually returned on 2026-08-09 (R-16), addresses
+    // and account numbers shortened. A healthy live response must never be
+    // rejected at the boundary.
+    const live = {
+      id: "e101cbb9-9b89-4c94-b613-18bf52193b2f",
+      type: "transfer",
+      transfer: {
+        source: { amount: "2.00", currency: "usd", rail: "ach", referenceId: "3523863" },
+        destination: {
+          currency: "usdc",
+          rail: "base",
+          address: { type: "onchain", address: `0x${"9d".repeat(20)}` },
+        },
+        fees: {
+          rain: { currency: "usd", amount: "0.50", amountUSD: "0.50" },
+          developer: { currency: "usd", amount: "0.00", amountUSD: "0.00" },
+          sender: { currency: "usd", amount: "0.00", amountUSD: "0.00" },
+        },
+        status: "processing",
+        createdAt: "2026-08-09T00:00:00.000Z",
+        updatedAt: "2026-08-09T00:00:30.000Z",
+        depositAddress: {
+          type: "fiat",
+          beneficiaryName: "Beneficiary",
+          accountNumber: "000123456789",
+          routingNumber: "021000021",
+        },
+        exchangeRate: 1,
+        userId: "00000000-0000-4000-8000-0000000000ff",
+      },
+    };
+    const parsed = transferTransaction.safeParse(live);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.transfer?.status).toBe("processing");
   });
 
   test("a type filter keeps spend and transfer rows apart", async () => {

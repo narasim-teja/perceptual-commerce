@@ -478,19 +478,26 @@ const FUND_AMOUNT = "2";
  *
  * The route is the immutable one from RAIN_PAYMENT_ROUTE_ID (created once by
  * spikes/07). On RAIL=fake the service builds its own route against the fixture
- * so the beat rehearses offline, end to end, with the same three record rows:
- * funding requested, transfer pending, transfer completed.
+ * so the beat rehearses offline, end to end, with the same record rows:
+ * funding requested, transfer visible, transfer completed.
  *
- * Fail-closed like everything else: if the transfer never appears or never
- * completes inside the polling budget, the record says so and the outcome is a
- * refusal, not a shrug.
+ * Visibility is the payoff. The live sandbox parks the transfer in
+ * `processing` for minutes — completion has never been observed inside any
+ * sane poll (FEEDBACK R-16) — so the beat succeeds when the transfer APPEARS
+ * on the ledger, narrating its actual status honestly. If `completed` is
+ * observed inside the budget, that is the final row. Fail-closed only where
+ * failing is honest: if nothing ever appears, the record says so and the
+ * outcome is a refusal, not a shrug.
  */
 export async function fundBudget(): Promise<FundOutcome> {
   const service = getService();
   const { config, loop } = service;
   const client = loop.rainClient;
 
-  let routeId = config.RAIN_PAYMENT_ROUTE_ID ?? service.fundingRouteId;
+  // The configured route id names a route on the LIVE sandbox. The fake rail
+  // cannot know it, so it only ever uses the route it provisioned for itself —
+  // otherwise a filled-in .env breaks the offline rehearsal with a 404.
+  let routeId = config.RAIL === "rain" ? (config.RAIN_PAYMENT_ROUTE_ID ?? null) : service.fundingRouteId;
   if (!routeId) {
     if (config.RAIL === "rain") {
       return {
@@ -533,11 +540,14 @@ export async function fundBudget(): Promise<FundOutcome> {
     return { ok: false, error: sim.error.message };
   }
 
-  // Bounded polling. The fake completes in ~200ms; the sandbox takes seconds.
+  // Bounded polling. The fake ripens in ~200ms; the live sandbox parks the
+  // transfer in `processing` for minutes (R-16), so the poll's job is to see
+  // it appear — and to give completion a chance, not to demand it.
   const attempts = config.RAIL === "fake" ? 12 : 10;
   const delayMs = config.RAIL === "fake" ? 100 : 1500;
   let transferId: string | null = null;
-  let announcedPending = false;
+  let lastStatus = "processing";
+  let announced = false;
 
   for (let attempt = 0; attempt < attempts; attempt++) {
     const listed = await listTransactions(client, { type: "transfer", limit: 50 });
@@ -551,7 +561,8 @@ export async function fundBudget(): Promise<FundOutcome> {
       if (mine?.id) {
         const id: string = mine.id;
         transferId = id;
-        const status = mine.transfer?.status ?? "pending";
+        const status = mine.transfer?.status ?? "processing";
+        lastStatus = status;
         if (status === "completed") {
           emitFeed(service, {
             stage: "settled",
@@ -561,11 +572,11 @@ export async function fundBudget(): Promise<FundOutcome> {
           });
           return { ok: true, transferId: id, status };
         }
-        if (!announcedPending) {
-          announcedPending = true;
+        if (!announced) {
+          announced = true;
           emitFeed(service, {
             stage: "observed",
-            detail: `transfer ${id.slice(0, 8)}… pending on Rain's ledger`,
+            detail: `transfer ${id.slice(0, 8)}… visible on Rain's ledger, status ${status}`,
             signal,
             transactionId: id,
           });
@@ -575,18 +586,24 @@ export async function fundBudget(): Promise<FundOutcome> {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
+  if (transferId) {
+    // The payoff already happened: the money is visible in Rain's issuing
+    // ledger. Completion runs on the sandbox's own multi-minute ACH clock and
+    // is not this beat's to wait for.
+    const detail = `transfer visible in Rain's ledger, status ${lastStatus}; the simulated ACH completes on its own clock`;
+    emitFeed(service, { stage: "settled", detail, signal, transactionId: transferId });
+    return { ok: true, transferId, status: lastStatus };
+  }
+
   const waited = Math.round((attempts * delayMs) / 1000) || 1;
-  const message = transferId
-    ? `the transfer was accepted but had not completed after ${waited}s. Check GET /issuing/transactions?type=transfer before trusting the balance.`
-    : `the simulation was accepted (202) but no transfer appeared on the ledger within ${waited}s. Do not assume the money moved.`;
+  const message = `the simulation was accepted (202 {"success":true}) but no transfer appeared on the ledger within ${waited}s. Do not assume the money moved.`;
   emitFeed(service, {
     stage: "rejected",
     detail: message,
     signal,
-    ...(transferId ? { transactionId: transferId } : {}),
     error: message,
   });
-  return { ok: false, ...(transferId ? { transferId } : {}), error: message };
+  return { ok: false, error: message };
 }
 
 // ─── Rain's half of the receipt ───────────────────────────────────────────────
