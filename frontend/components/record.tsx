@@ -277,27 +277,48 @@ export function Record({
                 )}
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {/* A read, not a new authorization: the settled card is already
-                  retired, so the proof lives in the run's own record. */}
-              <Button busy={probing} onClick={onProbe}>
-                show the spend controls
-              </Button>
-              <span className="datum flex-1 text-[10px] text-ink-3">
-                {probeNote ??
-                  "the issuer refused a category outside this card's MCC allowlist. press for the evidence."}
-              </span>
+            {/* The hint sits beside its button; a real outcome gets the full
+                panel width below it. Evidence crammed into whatever column is
+                left over clips exactly when it matters, which is on stage. */}
+            <div className="mt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* A read, not a new authorization: the settled card is already
+                    retired, so the proof lives in the run's own record. */}
+                <Button busy={probing} onClick={onProbe}>
+                  show the spend controls
+                </Button>
+                {probeNote === null ? (
+                  <span className="datum flex-1 text-[10px] text-ink-3">
+                    the issuer refused a category outside this card&rsquo;s MCC allowlist. press
+                    for the evidence.
+                  </span>
+                ) : null}
+              </div>
+              {probeNote !== null ? (
+                <p className="datum mt-2 border-l-2 border-ink pl-2 text-[11px] leading-normal text-ink-2 wrap-break-word">
+                  {probeNote}
+                </p>
+              ) : null}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {/* The funding beat: a simulated $2 down the payment route, and
-                  the strip narrates the transfer until Rain's ledger posts it. */}
-              <Button busy={funding} onClick={onFund}>
-                fund the budget
-              </Button>
-              <span className="datum flex-1 text-[10px] text-ink-3">
-                {fundNote ??
-                  "push $2 down the payment route and watch the transfer land on rain's ledger."}
-              </span>
+            <div className="mt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* The funding beat: a simulated $2 down the payment route, and
+                    the strip narrates the transfer until Rain's ledger posts it. */}
+                <Button busy={funding} onClick={onFund}>
+                  fund the budget
+                </Button>
+                {fundNote === null ? (
+                  <span className="datum flex-1 text-[10px] text-ink-3">
+                    push $2 down the payment route and watch the transfer land on rain&rsquo;s
+                    ledger.
+                  </span>
+                ) : null}
+              </div>
+              {fundNote !== null ? (
+                <p className="datum mt-2 border-l-2 border-ink pl-2 text-[11px] leading-normal text-ink-2 wrap-break-word">
+                  {fundNote}
+                </p>
+              ) : null}
             </div>
           </div>
         ) : (

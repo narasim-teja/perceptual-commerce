@@ -706,7 +706,11 @@ export function Sight({
             aria-pressed={armed}
             disabled={!watching}
             onClick={onArm}
-            className={cx(armed && "bg-ink text-ink-inv hover:bg-ink")}
+            // Important on purpose: cx joins classes without resolving Tailwind
+            // conflicts, so a bare bg-ink loses to the Button's own bg-paper by
+            // stylesheet order while text-ink-inv wins — white on white. The
+            // armed state must beat the base, not coin-toss it.
+            className={cx(armed && "bg-ink! text-ink-inv! hover:bg-ink!")}
           >
             {armed ? "armed" : "arm auto"}
           </Button>
