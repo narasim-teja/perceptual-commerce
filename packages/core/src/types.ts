@@ -86,7 +86,17 @@ export interface Receipt {
   readonly settledAt: number;
 }
 
-export type SettlementRailKind = "card" | "x402";
+/**
+ * One member, because one rail ships.
+ *
+ * It stayed `"card" | "x402"` for a while and the second member was never
+ * settled by anything: no rail returned it, no branch read it, and the only
+ * function that claimed it threw. A union that admits a value the system cannot
+ * produce is a claim in the type system, and this repo does not get to make
+ * claims there that it refuses to make on screen. Cards are the settlement
+ * story. A second rail widens this when a second rail exists.
+ */
+export type SettlementRailKind = "card";
 
 /** The policy plane. Anything that can say allow/deny implements this. */
 export interface PolicyPlane {

@@ -1,16 +1,20 @@
 /**
  * Rails are swappable; the spine is not.
  *
- * `RainCardRail` ships for the POC. `X402Rail` stays an interface-only stub on
- * purpose — the "same intent, machine-world settlement" story is architecturally
- * true without costing a weekend, and claiming more than that would be dishonest.
+ * The seam is `SettlementRail`: an implementation cannot be called without an
+ * `Authorization`, which is what makes settlement a dumb executor rather than a
+ * second decision maker. `RainCardRail` is the one implementation, and cards are
+ * the whole settlement story.
+ *
+ * There was an `x402Rail()` here that threw, on the theory that an interface-only
+ * stub made the "same intent, machine-world settlement" claim architecturally
+ * true for free. It did not. A function that exists and throws is a claim the
+ * repo cannot back, and the swappability it was standing in for is already
+ * carried by the interface: anything that can turn an Authorization into a
+ * Receipt implements this, and the pipeline, the gate and the contract do not
+ * move when it does. The seam does not need a fake occupant to be real.
  */
 
 import type { SettlementRail } from "@pc/core";
 
 export type { SettlementRail };
-
-/** DOCUMENTED STUB — do not build this during the hackathon. */
-export function x402Rail(): SettlementRail {
-  throw new Error("x402 rail is an intentional stub: the interface is the claim, not an implementation");
-}
