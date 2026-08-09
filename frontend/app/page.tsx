@@ -74,7 +74,9 @@ await createCommerce({ policy, rail })
   .onResult((r) => r.ok && ship(r.receipt))
   .start();`;
 const GATE = "0x8FbB75A725e9C09C0Cc1680795D90409732381cA";
-const RULING = "0x065b210bede9f87cbee555916a508faecfc6a754bfc813908495c3840c002e4c";
+const RULING = "0x50b1dde4248a1ca4d507799f13175300cfcce0c75999b9594a4e386d57df767c";
+/** The agent that read the shelf on the recorded run. Links to its hub repo. */
+const RUN_MODEL = "onnx-community/rfdetr_nano-ONNX";
 
 const HUB = "https://huggingface.co";
 
@@ -576,22 +578,22 @@ export default function FrontPage() {
           console printed it.
         </p>
         <ol className="mt-4 border-2 border-ink">
-          <RunRow at="01:22:54" mark="observed" weight="paper">
-            bottle.stock &lt; 3, confidence 0.89.{" "}
+          <RunRow at="10:56:18" mark="observed" weight="paper">
+            cup.stock &lt; 2, confidence 0.79.{" "}
             <a
-              href={`${HUB}/Xenova/yolos-tiny`}
+              href={`${HUB}/${RUN_MODEL}`}
               target="_blank"
               rel="noreferrer"
               className="underline underline-offset-2"
             >
-              Xenova/yolos-tiny
+              {RUN_MODEL}
             </a>{" "}
-            counted 0 bottles in the watched region.
+            counted 1 cup in the watched region at score &gt;= 0.30, in 904 ms.
           </RunRow>
-          <RunRow at="01:22:54" mark="intent" weight="paper">
+          <RunRow at="10:56:18" mark="intent" weight="paper">
             $42.99 to Restaurant Depot, mcc 5411 grocery stores
           </RunRow>
-          <RunRow at="01:22:55" mark="permitted" weight="permit">
+          <RunRow at="10:56:18" mark="permitted" weight="permit">
             ruling{" "}
             <a
               href={`${EXPLORER}/tx/${RULING}`}
@@ -599,17 +601,17 @@ export default function FrontPage() {
               rel="noreferrer"
               className="underline underline-offset-2"
             >
-              0x065b210bed…0c002e4c
+              0x50b1dde424…57df767c
             </a>{" "}
-            confirmed in 584 ms, block 52151814, signed by the agent&rsquo;s own key
+            confirmed in 363 ms, block 52264466, signed by the agent&rsquo;s own key
           </RunRow>
-          <RunRow at="01:22:59" mark="bounds held" weight="paper">
+          <RunRow at="10:56:22" mark="bounds held" weight="paper">
             a probe at mcc 5813 bars and nightclubs, refused by the issuer:
             scoped_card_mcc_not_allowed. the card&rsquo;s bounds, holding.
           </RunRow>
-          <RunRow at="01:23:00" mark="settled" weight="permit">
-            card ••7894, transaction 971bff04…ebcd9f. Rain&rsquo;s own ledger posts the same
-            $42.99 against the same transaction.
+          <RunRow at="10:56:23" mark="settled" weight="permit">
+            card ••5735, transaction 3ef1154b…3953d9. Rain&rsquo;s own ledger posts the same
+            $42.99 against the same transaction, completed.
           </RunRow>
         </ol>
         <p className="mt-3 max-w-[86ch] text-[12px] leading-[1.6] text-ink-3">

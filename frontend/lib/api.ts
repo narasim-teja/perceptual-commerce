@@ -221,6 +221,29 @@ export const clock = (at: number) =>
   });
 
 /**
+ * The same clock, to the millisecond, for the record's own rows.
+ *
+ * A whole run lands inside one second: the chain takes ~300 ms and the rest of
+ * the spine is single-digit milliseconds, so at second resolution every stage
+ * prints the same time and the record reads as though it all happened at once.
+ * The ordering and the gaps are the argument, and one of the product's own
+ * principles is that latency is content rather than something to hide, so the
+ * feed shows what it actually measured.
+ *
+ * Deliberately not applied to the issuer's `postedAt`: that is somebody else's
+ * timestamp, at their resolution, and printing `.000` on it would invent a
+ * precision Rain never sent.
+ */
+export const clockMs = (at: number) =>
+  new Date(at).toLocaleTimeString("en-GB", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
+  });
+
+/**
  * Stage to how it should read on the sheet.
  *
  * `weight` decides the material, not just the colour. A refusal is a hatched

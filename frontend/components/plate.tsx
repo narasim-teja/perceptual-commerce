@@ -26,19 +26,19 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { frameHash, paint, regionIndices, toGrid, type Region } from "@/lib/screen";
-import { drawScene, jarRect } from "@/lib/scene";
+import { drawScene, cupRect } from "@/lib/scene";
 
 const INK = "#0a0a0a";
 const PAPER = "#f5f3ec";
 const SIGNAL = "#ff5a3c";
 
-/** Where the jars stand, in normalised frame coordinates. */
+/** Where the cups stand, in normalised frame coordinates. */
 const REGION: Region = [0.17, 0.4, 0.74, 0.42];
 /** Instances at or below this read as low stock, same floor the console ships. */
 const LOW_AT = 3;
 /** Consecutive low readings before anything is emitted. The console's own debounce. */
 const RUNS_REQUIRED = 4;
-/** Below this a hit is noise rather than a bottle. The console's default floor. */
+/** Below this a hit is noise rather than a cup. The console's default floor. */
 const SCORE_FLOOR = 0.3;
 const MODEL = "Xenova/yolos-tiny";
 
@@ -46,7 +46,7 @@ const MODEL = "Xenova/yolos-tiny";
  * The depletion script: hold stocked, walk down, then hold the fired state
  * longest, because the fired state is the one worth reading.
  */
-const SCRIPT = [9, 8, 6, 5, 4, 3, 2, 2, 2, 2, 2, 2];
+const SCRIPT = [6, 5, 4, 3, 2, 2, 2, 2, 2, 2];
 const STEP_MS = 900;
 
 /** Consecutive low readings ending at `index`, the way the pipeline counts them. */
@@ -56,15 +56,15 @@ function runAt(index: number): number {
   return run;
 }
 
-/** Deterministic per-jar variation, so scores and boxes read as measured. */
+/** Deterministic per-cup variation, so scores and boxes read as measured. */
 function scatter(seed: number): number {
   const s = Math.sin(seed * 78.233) * 43758.5453;
   return s - Math.floor(s);
 }
 
-/** What the detector returns for jar `i`: its rect, loosened the way a box is. */
+/** What the detector returns for cup `i`: its rect, loosened the way a box is. */
 function detection(i: number) {
-  const [x0, y0, x1, y1] = jarRect(i);
+  const [x0, y0, x1, y1] = cupRect(i);
   const pad = 0.004 + scatter(i + 3) * 0.005;
   return {
     x0: x0 - pad,
@@ -154,7 +154,7 @@ export function Plate() {
             height={576}
             className="block h-auto w-full"
             role="img"
-            aria-label={`the watched shelf, screened into halftone ink, with ${stock} bottles boxed by the detector`}
+            aria-label={`the watched shelf, screened into halftone ink, with ${stock} cups boxed by the detector`}
           />
 
           {/* Hollow rather than filled, the same as the console: a solid box
@@ -171,7 +171,7 @@ export function Plate() {
                 height: `${(box.y1 - box.y0) * 100}%`,
               }}
             >
-              {/* Nine score tabs across a 340px sheet is confetti, so below sm
+              {/* Six score tabs across a 340px sheet is confetti, so below sm
                   the boxes stand alone and the count carries the reading. */}
               <span className="bit bit-8 absolute -top-[3px] left-0 hidden -translate-y-full bg-signal px-[4px] py-[3px] text-ink sm:block">
                 {box.score.toFixed(2)}
@@ -202,10 +202,10 @@ export function Plate() {
 
       <dl>
         <Line label="reads">
-          {stock} bottle in the watched region at score &gt;= {SCORE_FLOOR.toFixed(2)}
+          {stock} cup in the watched region at score &gt;= {SCORE_FLOOR.toFixed(2)}
         </Line>
         <Line label="tests">
-          <span className="text-ink">bottle.stock &lt; {LOW_AT}</span>{" "}
+          <span className="text-ink">cup.stock &lt; {LOW_AT}</span>{" "}
           {/* The chip answers the predicate and nothing else. It goes solid on
               true and stays paper on false, and it never takes the accent: a
               true predicate that the debounce has not confirmed yet is not a

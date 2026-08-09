@@ -290,6 +290,19 @@ export function Sight({
 
   const spec = DETECTORS[picked];
   const modelled = spec.kind === "model";
+  /**
+   * The frame is drawn rather than photographed, either by configuration or
+   * because the camera fell back to it.
+   *
+   * This matters to a model detector and to nothing else. Measured on this
+   * machine: yolos-tiny finds zero cups in the authored scene with six of them
+   * on the shelf, because a COCO model reads photographs and this is flat
+   * synthetic geometry. That zero is the model failing to read the frame, not a
+   * shelf that needs restocking, and the two are indistinguishable downstream:
+   * zero is under any floor, so the predicate fires and the loop would buy
+   * something because of a drawing.
+   */
+  const authored = mode === "simulated" || fellBack;
   const counting = sample?.count !== null && sample?.count !== undefined;
   const ready =
     watching && (modelled ? detectorState.phase === "ready" : (sample?.referenced ?? false));
@@ -447,6 +460,34 @@ export function Sight({
                   </p>
                 </>
               )}
+            </div>
+          </div>
+        ) : modelled && authored ? (
+          /* Last, because it is the only one of these that fires on a source
+             that is working perfectly. The model loaded, the frame is arriving,
+             the count is real, and the count is still meaningless: it is a COCO
+             detector's answer about a drawing. This is the state the camera
+             falls into mid-demo, so it names the fix rather than the fault. */
+          <div className="absolute inset-0 flex items-center justify-center bg-paper/85 p-6">
+            <div className="max-w-[44ch] border-2 border-ink bg-paper p-4">
+              <h3 className="bit bit-16">drawn scene, model detector</h3>
+              <Note className="mt-2">
+                {fellBack
+                  ? "The camera is unavailable, so the source fell back to the authored scene. "
+                  : "The authored scene is drawn, not photographed. "}
+                {spec.model} reads photographs, finds nothing here, and reports zero. That zero
+                is the model failing to read a drawing, not an empty shelf, and nothing
+                downstream can tell those apart: it would buy something because of a picture.
+                The screen detector measures how much the region changed and has to recognise
+                nothing, which is what this scene was built for.
+              </Note>
+              <Button
+                className="mt-3 w-full"
+                variant="primary"
+                onClick={() => onDetector("screen")}
+              >
+                use the screen detector
+              </Button>
             </div>
           </div>
         ) : null}

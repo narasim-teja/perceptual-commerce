@@ -14,6 +14,7 @@ import { Button, Datum, Note, Panel, cx } from "@/components/kit";
 import {
   STAGE_META,
   clock,
+  clockMs,
   mccLabel,
   shortHash,
   usd,
@@ -166,8 +167,11 @@ export function Record({
                   key={`${event.id}:${event.at}`}
                   className="flex items-start gap-2 border-b border-dashed border-paper-3 px-3 py-[7px]"
                 >
-                  <span className="datum w-[50px] shrink-0 pt-[5px] text-[10px] text-ink-3">
-                    {clock(event.at)}
+                  {/* Wide enough for the milliseconds. Without them the whole
+                      run prints one repeated second and the ordering, which is
+                      the thing worth reading, disappears. */}
+                  <span className="datum w-[74px] shrink-0 pt-[5px] text-[10px] text-ink-3">
+                    {clockMs(event.at)}
                   </span>
                   <span
                     className={cx(
