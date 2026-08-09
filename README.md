@@ -33,6 +33,99 @@ allowlist and expiry are enforced natively at authorization time. Tessr does not
 intercept the live card authorization, because it does not. Fail-closed at *mint* is the
 accurate description.
 
+## The policy plane, on Monad
+
+**[`0x8FbB75A725e9C09C0Cc1680795D90409732381cA`](https://testnet.monadexplorer.com/address/0x8FbB75A725e9C09C0Cc1680795D90409732381cA)**,
+Monad testnet 10143, source verified. Read `Policy.sol` on the explorer rather than taking this
+file's word for it. Source: [`packages/policy/contract/src/Policy.sol`](packages/policy/contract/src/Policy.sol).
+
+The whole gate is onchain state, not a config file that claims to be one:
+
+| Onchain | What it bounds |
+|---|---|
+| `allowedPayee` | who may be paid, keyed by `keccak256(payeeId)` |
+| `allowedMcc` | which merchant categories may be minted for |
+| `maxAmountCents` | the ceiling on any single intent |
+| `velocityWindowSeconds`, `maxMintsPerWindow`, `maxCentsPerWindow` | how much may be minted per rolling window |
+| `killSwitch` | one boolean that stops every mint |
+| `ruled` | every intent hash already ruled on, so a replay cannot be re-ruled |
+
+Two entry points, and using both is the point:
+
+- **`evaluateMint(...)` is a free `view`.** The plane reads it first. A payee that is off the
+  allowlist is refused here, before any transaction exists, so by default that refusal **costs
+  zero gas**.
+- **`ruleMint(...)` is the write**, and it emits `MintRuling(intentHash, payee, mcc, amountCents,
+  allowed, reason, rulingAt)`. Without a confirmed transaction hash there is no allow, so a dead
+  RPC or a timeout is a deny by construction rather than by a `try/catch`.
+
+**Why this needs a fast chain and not just any chain.** The velocity window is read-modify-write
+onchain state: `windowStart`, `mintsInWindow` and `centsInWindow` are updated by the ruling
+itself. That makes the ruling a real transaction that has to confirm *inside* a card-issuing
+flow, while somebody is standing at a shelf. A measured ruling on this contract confirms in
+**363 ms, one block** ([tx `0x50b1dde4…`](https://testnet.monadexplorer.com/tx/0x50b1dde4248a1ca4d507799f13175300cfcce0c75999b9594a4e386d57df767c),
+block 52264466). On a chain with multi-second finality the same design is a spinner.
+
+**The agent has its own onchain identity.** `AGENT_PRIVATE_KEY` signs rulings and can do nothing
+else. The owner key sets the allowlists, the limits and the kill switch. The agent may only ask;
+the owner decides what asking can win, and both halves are visible on the explorer.
+
+**Refusals can be onchain evidence too.** With `RECORD_DENIES=true` a deny also calls `ruleMint`,
+which mutates no state on a refusal but still emits `MintRuling` with `allowed=false`, so the
+refusal has a transaction hash anyone can open. Onchain proof of a machine *declining* to spend
+is a rarer artifact than proof of it spending, and it costs only gas rather than a card.
+
+## Settlement, on Rain
+
+One authorized intent produces exactly one card, minted through Rain's issuing API and scoped at
+creation:
+
+| Scope | Where it comes from |
+|---|---|
+| amount ceiling | the intent's amount |
+| `allowedMccs` | the payee's MCC, the same one the contract ruled on |
+| expiry | short, set at mint |
+| `Idempotency-Key` | the derived `IntentId`, so a camera at 30fps mints once |
+
+Two details worth reading the code for:
+
+- **The ceiling is corrected for Rain's 1.2x buffer.** Rain widens a requested limit by 1.2 and
+  rounds up, so we request `amount / 1.2` and the card's *real* ceiling lands on the intent. An
+  intent for $42.99 produces an instrument that cannot approve $43. See `ceilingMode` in
+  [`cards.ts`](packages/settlement/src/rain/cards.ts).
+- **The card is retired by its first approved authorization**, so the wrong-category probe has to
+  run between mint and purchase. A declined authorization is free and does not consume the card;
+  an approved one ends its life. That ordering is load-bearing, not stylistic.
+
+Card secrets come back encrypted: an RSA-wrapped `sessionid` carries a session key, and the PAN
+returns under AES-128-GCM. We implement the decrypt ourselves because Rain's own sample never
+verifies the GCM tag and appends it to the plaintext. The local server encrypts with real crypto,
+so that correction is exercised on every test run rather than trusted.
+
+Purchases are driven through Rain's `simulate` endpoints, because a sandbox has no merchant
+terminal. Funding uses a payment route, usd over ACH in, USDC out on Base Sepolia. Monad is not
+an available Rain rail and nothing here pretends otherwise.
+
+### Why this only works on an issuer like Rain
+
+An agent that spends has three options, and only one of them makes a bound real.
+
+1. **Give it a shared card and watch the statement.** The bound is advisory and enforced after
+   the money is gone. This is what most agent-commerce demos actually are.
+2. **Intercept every authorization with a webhook.** Now your uptime sits in the card network's
+   critical path, and almost no issuer exposes partner-managed authorization anyway.
+3. **Mint a fresh instrument per intent, scoped so the issuer enforces the bound natively.**
+
+Only the third turns "the agent should not spend more than $42.99" into "the agent *cannot*",
+and it needs an issuer that will create a card programmatically, per transaction, carrying its
+own limits, and retire it afterwards. That is the capability Rain provides and the reason the
+policy plane never has to sit in the authorization path.
+
+It is also why the honest limit is a consequence rather than a shortcoming. The bound does not
+need intercepting at authorization time because it was already written into the instrument at
+creation. The contract decides whether the card may exist; the issuer decides what the card may
+do. Two independent authorities, and neither one is us.
+
 ## Quickstart
 
 ```bash
@@ -271,7 +364,9 @@ the contract is still read and ruled on, and a receipt still comes back. Fill in
 block only when you flip to `RAIL=rain`, which mints a real scoped card in the **Rain sandbox**.
 Nothing downstream can tell the two apart, and no real funds exist anywhere in this project.
 
-Deploying the policy contract:
+Deploying your own policy contract. The one this repo points at is already live and verified at
+[`0x8FbB75A7…2381cA`](https://testnet.monadexplorer.com/address/0x8FbB75A725e9C09C0Cc1680795D90409732381cA),
+so you only need this to run your own gate:
 
 ```bash
 bun run policy:balance      # check the deployer is funded
