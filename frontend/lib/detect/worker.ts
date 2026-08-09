@@ -125,28 +125,40 @@ async function load(id: DetectorId, forced?: "webgpu" | "wasm"): Promise<void> {
   //
   // The two branches are spelled out rather than sharing an options object,
   // because the task is what picks the pipeline and it has to be a literal.
-  current =
+  const model = spec.model;
+  const build = async (on: "webgpu" | "wasm"): Promise<Loaded> =>
     id === "open-vocab"
       ? {
           id,
-          backend: device,
-          run: await load_("zero-shot-object-detection", spec.model, {
-            device,
+          backend: on,
+          run: await load_("zero-shot-object-detection", model, {
+            device: on,
             dtype: "q8",
             progress_callback,
           }),
         }
       : {
           id,
-          backend: device,
-          run: await load_("object-detection", spec.model, {
-            device,
+          backend: on,
+          run: await load_("object-detection", model, {
+            device: on,
             dtype: "q8",
             progress_callback,
           }),
         };
 
-  post({ type: "ready", id, backend: device });
+  // A backend that refuses to build a session is the loud sibling of the one
+  // that accepts work and never answers (the client's watchdog handles that
+  // case). Same answer for both: one retry on WASM, because a slower detector
+  // that loads beats a faster one that will not. Only a WASM failure is final.
+  try {
+    current = await build(device);
+  } catch (e) {
+    if (forced === "wasm" || device === "wasm") throw e;
+    current = await build("wasm");
+  }
+
+  post({ type: "ready", id, backend: current.backend });
 }
 
 /** `percentage: true` returns 0..1 already. Clamp, because OWL-ViT can go negative. */
