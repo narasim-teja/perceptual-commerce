@@ -3,7 +3,7 @@
  *
  * This is the seam the product's "perception layer" claim actually rests on. A
  * detector turns the watched region of a frame into a Reading: a count, a
- * confidence, and a sentence saying how it got there. Three of them are
+ * confidence, and a sentence saying how it got there. Four of them are
  * registered below, and they share nothing but this shape.
  *
  * What matters is what they all *cannot* do. None of them knows the amount, the
@@ -18,7 +18,7 @@
  * spinner is lying about what it is doing.
  */
 
-export type DetectorId = "screen" | "objects" | "open-vocab";
+export type DetectorId = "screen" | "objects" | "objects-hd" | "open-vocab";
 
 export interface DetectorSpec {
   readonly id: DetectorId;
@@ -55,6 +55,15 @@ export const DETECTORS: Readonly<Record<DetectorId, DetectorSpec>> = {
     prompts: true,
     kind: "model",
   },
+  "objects-hd": {
+    id: "objects-hd",
+    title: "objects hd",
+    note: "The same 80 COCO classes, read by RF-DETR. Three times the download of objects and a stronger read of a crowded shelf.",
+    weightsMb: 29,
+    model: "onnx-community/rfdetr_nano-ONNX",
+    prompts: true,
+    kind: "model",
+  },
   "open-vocab": {
     id: "open-vocab",
     title: "open vocabulary",
@@ -66,7 +75,12 @@ export const DETECTORS: Readonly<Record<DetectorId, DetectorSpec>> = {
   },
 };
 
-export const DETECTOR_ORDER: readonly DetectorId[] = ["screen", "objects", "open-vocab"];
+export const DETECTOR_ORDER: readonly DetectorId[] = [
+  "screen",
+  "objects",
+  "objects-hd",
+  "open-vocab",
+];
 
 export function isDetectorId(value: unknown): value is DetectorId {
   return typeof value === "string" && value in DETECTORS;

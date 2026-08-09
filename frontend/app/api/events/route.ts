@@ -8,13 +8,27 @@ export const runtime = "nodejs";
  *
  * Two details that matter for a demo:
  *
- *  - **Replay on connect.** We push the last 40 events before subscribing, so a
- *    browser opened halfway through is not a blank panel.
+ *  - **Replay on connect.** We subscribe first and then push the last 40
+ *    events, so a browser opened halfway through is not a blank panel and an
+ *    event emitted during the replay is not lost in the gap. The client dedupes
+ *    on id:at, so an event that arrives both ways renders once.
  *  - **Heartbeat.** A comment frame every 15s keeps proxies and the dev server
  *    from closing an idle stream. SSE comments start with `:` and clients ignore
  *    them, so this costs nothing on the receiving end.
  */
 export async function GET(request: Request) {
+  // Touch the service before opening the stream: a broken .env must answer as
+  // JSON, not explode inside a ReadableStream where the client only sees a
+  // dropped connection.
+  try {
+    recentEvents(0);
+  } catch (e) {
+    return Response.json(
+      { ok: false, error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -29,9 +43,8 @@ export async function GET(request: Request) {
         }
       };
 
-      for (const event of recentEvents(40)) send(event);
-
       const unsubscribe = subscribe(send);
+      for (const event of recentEvents(40)) send(event);
       const heartbeat = setInterval(() => {
         if (closed) return;
         try {

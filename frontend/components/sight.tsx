@@ -10,9 +10,9 @@
  * the chain is still what the model is handed, and the panel still names which
  * rung the ruling actually turned on.
  *
- * The detector is a swap, not a mode. Three of them are registered and they
+ * The detector is a swap, not a mode. Four of them are registered and they
  * differ in what they can claim: the screen measures change and cannot count;
- * the two model detectors count instances and say so, at a stated download and a
+ * the model detectors count instances and say so, at a stated download and a
  * stated latency. Whichever runs, the observation leaving this panel has the
  * same shape, which is the whole layer claim in one file.
  *
@@ -33,6 +33,7 @@ import { DETECTORS, DETECTOR_ORDER, type Box, type DetectorId } from "@/lib/dete
 import {
   CHAIN,
   createPerception,
+  DEFAULT_MIN_SCORE,
   type ChainRung,
   type Perception,
   type PerceptionMode,
@@ -153,9 +154,15 @@ export function Sight({
   const appliedRef = useRef<string | null>(null);
   const [rung, setRung] = useState<ChainRung>("halftone");
   const rungRef = useRef<ChainRung>("halftone");
+  const [score, setScore] = useState(DEFAULT_MIN_SCORE);
+  const scoreRef = useRef(DEFAULT_MIN_SCORE);
   const [armed, setArmed] = useState(false);
   const armedRef = useRef(false);
   const [watching, setWatching] = useState(true);
+  // Whether the camera's exposure and white balance are held. Set by the
+  // controller once the lock takes; hardware that cannot lock never sets it,
+  // and the panel says nothing, which is this surface's word for unsupported.
+  const [locked, setLocked] = useState(false);
 
   /** What the box holds, which is free to differ from what was committed. */
   const [typed, setTyped] = useState<string | null>(null);
@@ -175,6 +182,9 @@ export function Sight({
   useEffect(() => {
     if (!watching) return;
 
+    // A fresh controller opens a fresh camera, which comes up metering
+    // automatically. The lock word must not outlive the lock.
+    setLocked(false);
     const instance = createPerception({
       mode,
       region: REGION,
@@ -182,12 +192,14 @@ export function Sight({
       detector: overrideRef.current ?? detector,
       target: appliedRef.current ?? target,
       lowAt,
+      minScore: scoreRef.current,
       onStatus: (next, detail) => {
         setStatus(next);
         setNote(detail);
       },
       onSample: setSample,
       onDetector: setDetectorState,
+      onLock: setLocked,
       onTrip: (tripped) => submitRef.current(tripped),
     });
     perception.current = instance;
@@ -220,6 +232,15 @@ export function Sight({
     overrideRef.current = next;
     setOverride(next);
     perception.current?.setDetector(next);
+  };
+
+  const onScore = (next: number) => {
+    // Steps of 0.05 between hard walls. Under harsh light real hits score in
+    // the 0.2s, so the walkable range has to reach down there.
+    const clamped = Math.min(0.9, Math.max(0.1, Math.round(next * 20) / 20));
+    scoreRef.current = clamped;
+    setScore(clamped);
+    perception.current?.setMinScore(clamped);
   };
 
   const onTarget = (next: string) => {
@@ -282,6 +303,12 @@ export function Sight({
       bodyClassName="flex min-h-0 flex-col"
       aside={
         <>
+          {/* Said only while it is true. Auto-exposure oscillation fights the
+              4-consecutive-low debounce under stage lighting, so a held meter
+              is worth a word; a meter that cannot be held gets none. */}
+          {watching && locked ? (
+            <span className="label hidden lg:inline text-ink-2">exposure locked</span>
+          ) : null}
           <span className="label hidden xl:inline">{sourceLabel}</span>
           {/* The camera control. An action, not a state: the chip beside it is
               the state, and a pressed-looking button labelled "camera off" would
@@ -579,6 +606,24 @@ export function Sight({
             </Datum>
           </div>
 
+          {modelled ? (
+            /* The score floor, live. Under harsh light real hits score in the
+               0.2s and glare mints phantom ones, so the operator walks this
+               between 0.2 and 0.45 in the room rather than editing a constant. */
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="label">score floor</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" aria-label="lower the score floor" onClick={() => onScore(score - 0.05)}>
+                  -
+                </Button>
+                <span className="datum w-[4ch] text-center text-ink">{score.toFixed(2)}</span>
+                <Button size="sm" aria-label="raise the score floor" onClick={() => onScore(score + 0.05)}>
+                  +
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {spec.prompts ? (
             <form
               className="mt-2 flex items-stretch gap-2"
@@ -598,9 +643,9 @@ export function Sight({
                 autoComplete="off"
                 className="datum min-w-0 flex-1 border-2 border-ink bg-paper px-[9px] py-[7px] text-ink placeholder:text-ink-3"
                 placeholder={
-                  picked === "objects"
-                    ? "a COCO class, e.g. bottle"
-                    : "any phrase, e.g. a glass jar"
+                  picked === "open-vocab"
+                    ? "any phrase, e.g. a glass jar"
+                    : "a COCO class, e.g. bottle"
                 }
               />
               <Button type="submit">count it</Button>

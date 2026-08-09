@@ -27,6 +27,18 @@ function firstLine(message: string): string {
   return head.length > 120 ? `${head.slice(0, 120)}…` : head;
 }
 
+/**
+ * When the velocity window resets, from windowStart + windowSeconds against
+ * now. The contract rolls the bucket lazily, on the next allowed mint, so an
+ * elapsed window reads as clear rather than as counting down past zero.
+ */
+function windowReset(policy: PolicyState): string {
+  const remaining = policy.windowStart + policy.windowSeconds - Math.floor(Date.now() / 1000);
+  if (remaining <= 0) return "window clear";
+  if (remaining < 60) return `resets in ${remaining}s`;
+  return `resets in ${Math.ceil(remaining / 60)}m`;
+}
+
 export function Gate({
   policy,
   chainError,
@@ -115,16 +127,17 @@ export function Gate({
             <h3 className="bit bit-12">mint authority</h3>
             <p className="datum mt-[3px] text-ink-3">Policy.sol, Monad testnet</p>
             <Note className="mt-1 text-ink-2">
-              Decides whether a spending instrument may be created at all. No allow, no card,
-              nothing to spend with.
+              Decides whether a spending instrument may be created at all. No allow, no scoped
+              card, nothing to spend with.
             </Note>
           </div>
           <div className="border-2 border-dashed border-paper-3 px-[10px] py-2">
             <h3 className="bit bit-12 text-ink-3">spend authority</h3>
             <p className="datum mt-[3px] text-ink-3">the card issuer, not this contract</p>
             <Note className="mt-1">
-              Enforces the card&rsquo;s amount, category and expiry natively, at authorization
-              time. This contract does not sit in that path and does not claim to.
+              Enforces the scoped card&rsquo;s spend controls natively at authorization time:
+              amount ceiling, MCC allowlist, expiry. This contract does not sit in that path and
+              does not claim to.
             </Note>
           </div>
         </div>
@@ -144,8 +157,11 @@ export function Gate({
             </a>
           </Datum>
           <Datum label="per mint cap">{usd(policy.maxAmountCents)}</Datum>
-          <Datum label="window used">
-            {policy.windowMints} mints, {usd(policy.windowCents)}
+          {/* Numerator and denominator together: how much budget the window
+              grants, how much is gone, and when the gate forgets. */}
+          <Datum label="spend interval">
+            {policy.windowMints} of {policy.maxMintsPerWindow} mints · {usd(policy.windowCents)} of{" "}
+            {usd(policy.maxCentsPerWindow)} · {windowReset(policy)}
           </Datum>
           {payee ? (
             <>

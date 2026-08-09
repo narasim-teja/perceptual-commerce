@@ -5,8 +5,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * The public Monad RPC rate-limits, and `readPolicyState` spends five calls per
- * poll. A single throttled response would otherwise paint CHAIN DOWN across the
+ * The public Monad RPC rate-limits. `readPolicyState` batches its nine reads
+ * through Multicall3, so a poll costs one request, but the endpoint is shared.
+ * A single throttled response would otherwise paint CHAIN DOWN across the
  * gate mid-demo and then clear itself eight seconds later, which looks exactly
  * like the product failing rather than like a shared endpoint being busy. One
  * short retry absorbs that without hiding a genuine outage: if the chain is
@@ -26,7 +27,18 @@ async function readPolicyStateWithRetry() {
 }
 
 export async function GET() {
-  const base = snapshot();
+  // `snapshot()` builds the service on first touch, which loads config. A
+  // broken .env must come back as JSON the client can render, not as Next's
+  // HTML 500 page.
+  let base: ReturnType<typeof snapshot>;
+  try {
+    base = snapshot();
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
   try {
     return NextResponse.json({ ...base, policy: await readPolicyStateWithRetry(), chainError: null });
   } catch (e) {

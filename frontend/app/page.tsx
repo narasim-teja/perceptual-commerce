@@ -6,13 +6,17 @@ import { Masthead, type Plane } from "@/components/masthead";
 import { Record } from "@/components/record";
 import { Sight } from "@/components/sight";
 import {
+  clock,
+  getProbeOutcome,
+  getRainLedger,
   getStatus,
+  postFund,
   postKillSwitch,
   postObservation,
   postPayeeAllowed,
-  postProbeDecline,
   shortHash,
   type FeedEvent,
+  type RainLedgerRecord,
   type Status,
 } from "@/lib/api";
 import type { Sample } from "@/lib/perception";
@@ -52,13 +56,22 @@ export default function Page() {
   const [togglingPayee, setTogglingPayee] = useState(false);
   const [probing, setProbing] = useState(false);
   const [probeNote, setProbeNote] = useState<string | null>(null);
-  const seen = useRef(new Set<number>());
+  const [funding, setFunding] = useState(false);
+  const [fundNote, setFundNote] = useState<string | null>(null);
+  const [ledger, setLedger] = useState<RainLedgerRecord | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  // Keyed by id AND timestamp: a dev-server restart resets ids to 1, so the id
+  // alone would make every replayed event after a reconnect look already seen.
+  const seen = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
     try {
       setStatus(await getStatus());
-    } catch {
-      /* keep the last good render; a blank console mid-demo is worse */
+      setServerError(null);
+    } catch (e) {
+      // Keep the last good render, but say what the server said: a config
+      // failure printed legibly beats a console that silently stops updating.
+      setServerError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
@@ -77,11 +90,17 @@ export default function Page() {
   // through a demo is not a blank strip.
   useEffect(() => {
     const source = new EventSource("/api/events");
+    // Every open is a fresh stream: after a dev-server restart the server
+    // replays with restarted ids, and a stale seen set would swallow all of it.
+    source.onopen = () => {
+      seen.current.clear();
+    };
     source.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data) as FeedEvent;
-        if (seen.current.has(event.id)) return;
-        seen.current.add(event.id);
+        const key = `${event.id}:${event.at}`;
+        if (seen.current.has(key)) return;
+        seen.current.add(key);
         setEvents((current) => [...current, event].slice(-160));
         if (event.stage === "settled" || event.stage === "rejected") void refresh();
       } catch {
@@ -91,15 +110,45 @@ export default function Page() {
     return () => source.close();
   }, [refresh]);
 
-  // Until the stream has delivered anything, the poll's replay is the feed.
-  const feed = useMemo(
-    () => (events.length ? events : (status?.events ?? [])),
-    [events, status?.events],
-  );
+  // The stream and the poll are two views of the same record, and either can
+  // miss what the other saw: the stream drops frames across a reconnect, the
+  // poll only carries the last 60. Merge them instead of choosing.
+  const feed = useMemo(() => {
+    const merged = new Map<string, FeedEvent>();
+    for (const event of status?.events ?? []) merged.set(`${event.id}:${event.at}`, event);
+    for (const event of events) merged.set(`${event.id}:${event.at}`, event);
+    return [...merged.values()].sort((a, b) => a.at - b.at || a.id - b.id).slice(-160);
+  }, [events, status?.events]);
   const activePlane = useMemo<Plane>(() => {
     const last = feed[feed.length - 1];
     return last ? planeFor(last) : null;
   }, [feed]);
+
+  /**
+   * Rain's half of the receipt, fetched once per settled transaction rather
+   * than on every poll: it is evidence, not a heartbeat. Keyed on the
+   * transaction id so a new settlement re-reads and a re-render does not.
+   */
+  const settledTransactionId = status?.lastResult?.ok
+    ? (status.lastResult.receipt.transactionId ?? null)
+    : null;
+  useEffect(() => {
+    if (!settledTransactionId) {
+      setLedger(null);
+      return;
+    }
+    let stale = false;
+    getRainLedger()
+      .then((record) => {
+        if (!stale) setLedger(record);
+      })
+      .catch(() => {
+        /* the issuer being unreachable does not invalidate our own record */
+      });
+    return () => {
+      stale = true;
+    };
+  }, [settledTransactionId]);
 
   /**
    * The supplier's standing on the onchain allowlist, read back out of the gate's
@@ -199,17 +248,22 @@ export default function Page() {
     }
   };
 
+  /**
+   * Surface the in-flow probe's recorded outcome. Never an authorization from
+   * here: the settled card is already retired, so a fresh probe against it
+   * could only fail and would prove nothing about the bounds.
+   */
   const probe = async () => {
     setProbing(true);
     setProbeNote(null);
     try {
-      const result = await postProbeDecline();
+      const result = await getProbeOutcome();
       setProbeNote(
         result.ok
           ? result.declined
-            ? `declined by the issuer: ${result.reason ?? "wrong category"}`
+            ? `${result.at ? `${clock(result.at)}, ` : ""}card ••${result.cardLast4 ?? "····"}: ${result.reason ?? "refused by the issuer"}`
             : `not declined: ${result.reason ?? "unexpected"}`
-          : (result.reason ?? result.error ?? "the probe could not run"),
+          : (result.reason ?? result.error ?? "no probe recorded for this run"),
       );
     } catch (e) {
       setProbeNote(e instanceof Error ? e.message : String(e));
@@ -218,9 +272,39 @@ export default function Page() {
     }
   };
 
+  /**
+   * The agent funds its own budget: $2 down the payment route, and the record
+   * strip narrates the transfer as it moves. The button waits for the whole
+   * flow because the outcome is the message, and a fail-closed refusal from
+   * the server is printed as received.
+   */
+  const fund = async () => {
+    setFunding(true);
+    setFundNote(null);
+    try {
+      const result = await postFund();
+      setFundNote(
+        result.ok
+          ? `transfer ${result.transferId ? shortHash(result.transferId, 8, 4) : ""} completed on rain's ledger.`
+          : (result.error ?? "the funding flow failed"),
+      );
+    } catch (e) {
+      setFundNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFunding(false);
+    }
+  };
+
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
       <Masthead active={activePlane} notice={notice} />
+
+      {serverError ? (
+        <div className="field-refuse shrink-0 border-b-2 border-ink px-3 py-2">
+          <span className="bit bit-12">server error</span>
+          <p className="datum mt-1 break-all text-[11px]">{serverError}</p>
+        </div>
+      ) : null}
 
       <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[1.4fr_0.9fr_1.05fr]">
         <Sight
@@ -252,6 +336,10 @@ export default function Page() {
           probing={probing}
           probeNote={probeNote}
           onProbe={probe}
+          ledger={ledger}
+          funding={funding}
+          fundNote={fundNote}
+          onFund={fund}
         />
       </main>
 

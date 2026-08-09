@@ -70,7 +70,7 @@ const load_ = pipeline as unknown as (
 env.allowLocalModels = false;
 
 type Loaded =
-  | { readonly id: "objects"; readonly run: ObjectDetector; readonly backend: string }
+  | { readonly id: "objects" | "objects-hd"; readonly run: ObjectDetector; readonly backend: string }
   | { readonly id: "open-vocab"; readonly run: ZeroShotDetector; readonly backend: string };
 
 let current: Loaded | null = null;
@@ -100,7 +100,9 @@ async function pickDevice(): Promise<"webgpu" | "wasm"> {
 
 async function load(id: DetectorId, forced?: "webgpu" | "wasm"): Promise<void> {
   const spec = DETECTORS[id];
-  if (spec.kind !== "model" || !spec.model) return;
+  // The literal check narrows `id` to the model detectors for the branch below;
+  // `screen` is the only registered detector without a model.
+  if (id === "screen" || spec.kind !== "model" || !spec.model) return;
   if (current?.id === id && (!forced || current.backend === forced)) {
     post({ type: "ready", id, backend: current.backend });
     return;
@@ -117,8 +119,9 @@ async function load(id: DetectorId, forced?: "webgpu" | "wasm"): Promise<void> {
   };
 
   // q8 rather than full precision. yolos-tiny is 25 MB at fp32 and 9 MB
-  // quantised; OWL-ViT is 584 MB and 148 MB. That is the difference between a
-  // download that finishes on conference wifi and one that does not.
+  // quantised; RF-DETR nano is 108 MB and 29 MB; OWL-ViT is 584 MB and 148 MB.
+  // That is the difference between a download that finishes on conference wifi
+  // and one that does not.
   //
   // The two branches are spelled out rather than sharing an options object,
   // because the task is what picks the pipeline and it has to be a literal.
@@ -134,7 +137,7 @@ async function load(id: DetectorId, forced?: "webgpu" | "wasm"): Promise<void> {
           }),
         }
       : {
-          id: "objects",
+          id,
           backend: device,
           run: await load_("object-detection", spec.model, {
             device,

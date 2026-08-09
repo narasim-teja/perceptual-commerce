@@ -26,9 +26,9 @@
  *                   demo fails on stage.
  *
  * With the `screen` detector, stage 1 is the divergence number itself and
- * nothing is downloaded. With `objects` or `open-vocab` the count comes from a
- * model in a worker. Downstream cannot tell: all three produce the same
- * observation, and the pipeline, the gate and the rail see one shape.
+ * nothing is downloaded. With the model detectors the count comes from a model
+ * in a worker. Downstream cannot tell: all four produce the same observation,
+ * and the pipeline, the gate and the rail see one shape.
  *
  * React is kept out of the frame loop entirely. Canvases are painted from the
  * loop directly and readouts are published on a slower cadence, because a
@@ -98,9 +98,13 @@ export interface PerceptionOptions {
   readonly target: string;
   /** Instances at or below this read as low stock. */
   readonly lowAt: number;
+  /** Detection score floor. Defaults to DEFAULT_MIN_SCORE; live via setMinScore. */
+  readonly minScore?: number;
   onStatus(status: PerceptionStatus, note: string | null): void;
   onSample(sample: Sample): void;
   onDetector(state: DetectorState): void;
+  /** Fired when the camera's exposure and white balance are locked. */
+  onLock?(locked: boolean): void;
   /** Fired once when a run of readings crosses the boundary. */
   onTrip(sample: Sample): void;
 }
@@ -132,8 +136,18 @@ const DETECT_EVERY_MS = 400;
 const DETECT_STALE_MS = 1500;
 /** Movement in the region worth spending an inference on. */
 const MOTION_FLOOR = 0.012;
-/** Detection score floor. Below this a hit is noise, not a bottle. */
-const MIN_SCORE = 0.3;
+/**
+ * Detection score floor. Below it a hit is noise, not a bottle. A default, not
+ * a constant: harsh stage light drops real hits into the 0.2s, so the operator
+ * can move it live from the console.
+ */
+export const DEFAULT_MIN_SCORE = 0.3;
+/**
+ * How long the camera gets to meter the scene before exposure is locked.
+ * Long enough for auto-exposure to converge on the shelf, short enough that the
+ * lock lands before the operator captures a reference frame.
+ */
+const CAMERA_SETTLE_MS = 1500;
 
 const INK = "#0a0a0a";
 const PAPER = "#f5f3ec";
@@ -158,6 +172,8 @@ export interface Perception {
   setDetector(id: DetectorId): void;
   /** Change what the model detectors are looking for. */
   setTarget(target: string): void;
+  /** Move the detection score floor live. The next reading answers the new floor. */
+  setMinScore(value: number): void;
   /** Simulated mode only. Take a jar off the shelf. */
   removeStock(): void;
   restock(): void;
@@ -196,6 +212,8 @@ export function createPerception(options: PerceptionOptions): Perception {
 
   let detectorId: DetectorId = options.detector;
   let target = options.target;
+  let minScore = options.minScore ?? DEFAULT_MIN_SCORE;
+  let lockTimer: number | null = null;
   let lastOfferAt = 0;
   // The newest thing a model said. Held across frames because inference is
   // slower than the loop: between answers, the count on screen is the last real
@@ -305,7 +323,7 @@ export function createPerception(options: PerceptionOptions): Perception {
     );
 
     void createImageBitmap(cropCanvas)
-      .then((bitmap) => detector.offer(bitmap, target, MIN_SCORE))
+      .then((bitmap) => detector.offer(bitmap, target, minScore))
       .catch(() => {
         // A frame that could not be encoded is not worth reporting: the next one
         // is 400ms away. A detector that cannot encode *any* frame shows up as a
@@ -393,7 +411,7 @@ export function createPerception(options: PerceptionOptions): Perception {
     }
 
     const basis = fresh
-      ? `${DETECTORS[detectorId].model ?? detectorId}: ${count} ${target} at score >= ${MIN_SCORE}${
+      ? `${DETECTORS[detectorId].model ?? detectorId}: ${count} ${target} at score >= ${minScore}${
           modelLatency === null ? "" : `, ${modelLatency}ms`
         }`
       : `screen: divergence ${drift.toFixed(3)} against ${options.threshold.toFixed(2)} over ${decisionCells.length} cells`;
@@ -461,6 +479,35 @@ export function createPerception(options: PerceptionOptions): Perception {
     return true;
   }
 
+  /**
+   * Lock exposure and white balance once the scene has settled, where the
+   * hardware allows it. Auto-exposure oscillation fights the 4-consecutive-low
+   * debounce under stage lighting: every swing of the meter reads as the region
+   * changing and resets the run mid-count. Feature-detected, and a camera that
+   * cannot lock keeps its automatic metering with nothing said.
+   */
+  function lockCamera(): void {
+    const track = stream?.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== "function") return;
+    // Neither mode is in lib.dom's MediaTrackCapabilities; the shapes are the
+    // Image Capture spec's, present on Chromium and absent elsewhere.
+    const caps = track.getCapabilities() as {
+      exposureMode?: readonly string[];
+      whiteBalanceMode?: readonly string[];
+    };
+    const advanced: Record<string, string>[] = [];
+    if (caps.exposureMode?.includes("manual")) advanced.push({ exposureMode: "manual" });
+    if (caps.whiteBalanceMode?.includes("manual")) advanced.push({ whiteBalanceMode: "manual" });
+    if (advanced.length === 0) return;
+    track
+      .applyConstraints({ advanced } as MediaTrackConstraints)
+      .then(() => options.onLock?.(true))
+      .catch(() => {
+        // Hardware that advertised the mode and then refused it stays automatic,
+        // and the panel says nothing rather than claiming a lock it lost.
+      });
+  }
+
   return {
     async start() {
       if (timer !== null) return;
@@ -475,6 +522,7 @@ export function createPerception(options: PerceptionOptions): Perception {
           reference = null;
         } else {
           source = "camera";
+          lockTimer = window.setTimeout(lockCamera, CAMERA_SETTLE_MS);
         }
       } else {
         source = "simulated";
@@ -505,6 +553,8 @@ export function createPerception(options: PerceptionOptions): Perception {
     stop() {
       if (timer !== null) window.clearInterval(timer);
       timer = null;
+      if (lockTimer !== null) window.clearTimeout(lockTimer);
+      lockTimer = null;
       stream?.getTracks().forEach((track) => track.stop());
       stream = null;
       video = null;
@@ -557,6 +607,20 @@ export function createPerception(options: PerceptionOptions): Perception {
       // The previous count answered a different question. Holding it while the
       // panel showed the new label would be the surface lying about what it
       // measured.
+      modelCount = null;
+      modelBoxes = [];
+      modelAt = 0;
+      run = 0;
+      tripped = false;
+    },
+
+    setMinScore(value) {
+      const clamped = Math.max(0.05, Math.min(0.95, value));
+      if (clamped === minScore) return;
+      minScore = clamped;
+      // The held count answered the old floor, and the basis line prints the
+      // floor it was read at. Keeping it would caption an old answer with a new
+      // question, so the count reverts until the next inference lands.
       modelCount = null;
       modelBoxes = [];
       modelAt = 0;

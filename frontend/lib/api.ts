@@ -31,6 +31,12 @@ export interface PolicyState {
   maxAmountCents: number;
   windowMints: number;
   windowCents: number;
+  /** The denominators: what the window allows, not just what it has used. */
+  maxMintsPerWindow: number;
+  maxCentsPerWindow: number;
+  windowSeconds: number;
+  /** Epoch seconds of the current bucket's start, straight off the contract. */
+  windowStart: number;
   wouldAllow: boolean;
   reason: string;
 }
@@ -59,7 +65,10 @@ export interface Status {
   explorerBase: string;
   cardsMinted: number | null;
   events: FeedEvent[];
-  lastResult: { ok: true; receipt: Receipt } | { ok: false; error: string } | null;
+  lastResult:
+    | { ok: true; receipt: Receipt }
+    | { ok: false; error: string; onchainRef: string | null }
+    | null;
   policy: PolicyState | null;
   chainError: string | null;
 }
@@ -84,7 +93,12 @@ export interface ObservationPayload {
 
 export async function getStatus(): Promise<Status> {
   const res = await fetch("/api/status", { cache: "no-store" });
-  if (!res.ok) throw new Error(`status ${res.status}`);
+  if (!res.ok) {
+    // The route answers config failures with { ok: false, error } JSON. Carry
+    // the server's own sentence to the screen instead of a bare status code.
+    const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+    throw new Error(body?.error ? String(body.error) : `status ${res.status}`);
+  }
   return res.json();
 }
 
@@ -120,14 +134,58 @@ export async function postPayeeAllowed(
   return res.json();
 }
 
-export async function postProbeDecline(): Promise<{
+/**
+ * The recorded outcome of the in-flow wrong-category probe. A read, not an
+ * authorization: the card that could prove the bounds live is retired the
+ * moment the purchase settles, so the evidence is the record.
+ */
+export async function getProbeOutcome(): Promise<{
   ok: boolean;
   declined?: boolean;
   reason?: string;
-  cardId?: string | null;
+  cardLast4?: string | null;
+  mcc?: string | null;
+  at?: number | null;
   error?: string;
 }> {
-  const res = await fetch("/api/probe-decline", { method: "POST" });
+  const res = await fetch("/api/probe-decline", { cache: "no-store" });
+  return res.json();
+}
+
+/** Rain's own posted record of the latest settlement. Amount is cents, like ours. */
+export interface RainLedgerRecord {
+  transactionId: string;
+  status: string | null;
+  postedAt: string | null;
+  amount: number | null;
+  merchantName: string | null;
+}
+
+/**
+ * Rain's half of the receipt, read back from their ledger. Fetched after a
+ * settle rather than on every poll: it is evidence, not a heartbeat.
+ */
+export async function getRainLedger(): Promise<RainLedgerRecord | null> {
+  const res = await fetch("/api/receipts", { cache: "no-store" });
+  if (!res.ok) return null;
+  const body = (await res.json()) as { rainLedger?: RainLedgerRecord | null };
+  return body.rainLedger ?? null;
+}
+
+export interface FundResult {
+  ok: boolean;
+  transferId?: string;
+  status?: string;
+  error?: string;
+}
+
+/**
+ * Ask the agent to fund its own budget: a simulated $2 down the payment
+ * route, then bounded polling until the transfer lands on Rain's ledger. The
+ * narration arrives on the event stream; this returns only the outcome.
+ */
+export async function postFund(): Promise<FundResult> {
+  const res = await fetch("/api/fund", { method: "POST" });
   return res.json();
 }
 

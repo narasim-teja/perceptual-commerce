@@ -11,7 +11,15 @@
  */
 
 import { Button, Datum, Note, Panel, cx } from "@/components/kit";
-import { STAGE_META, clock, shortHash, usd, type FeedEvent, type Status } from "@/lib/api";
+import {
+  STAGE_META,
+  clock,
+  shortHash,
+  usd,
+  type FeedEvent,
+  type RainLedgerRecord,
+  type Status,
+} from "@/lib/api";
 
 const WEIGHT: Record<string, string> = {
   ink: "bg-paper-2 text-ink",
@@ -36,8 +44,15 @@ function markFor(event: FeedEvent): {
 } {
   if (event.signal?.startsWith("probe:")) {
     return event.stage === "rejected"
-      ? { label: "bounds held", weight: "ink" }
+      ? { label: "controls held", weight: "ink" }
       : { label: "not declined", weight: "refuse" };
+  }
+  // The funding beat: treasury moves down the payment route and lands as a
+  // transfer on Rain's ledger. Quiet until it completes; loud if it does not.
+  if (event.signal?.startsWith("funding:")) {
+    if (event.stage === "settled") return { label: "funded", weight: "permit" };
+    if (event.stage === "rejected") return { label: "not funded", weight: "refuse" };
+    return { label: "treasury", weight: "ink" };
   }
   return STAGE_META[event.stage] ?? { label: event.stage, weight: "ink" };
 }
@@ -45,8 +60,14 @@ function markFor(event: FeedEvent): {
 /** Each stage says the most useful thing it knows, and nothing it does not. */
 function detailFor(event: FeedEvent): string | null {
   if (event.error) return event.error;
+  // Funding rows narrate themselves; the settled shorthand below would reduce
+  // one to a bare transfer id.
+  if (event.signal?.startsWith("funding:")) return event.detail;
   if (event.stage === "authorized" && event.detail?.startsWith("0x")) {
-    return `ruling ${shortHash(event.detail, 12, 8)}`;
+    // "<hash> · ruling confirmed in NNN ms, block N" — shorten the hash, keep
+    // the timing whole: the ~400 ms confirmation is the number worth reading.
+    const [hash = "", ...note] = event.detail.split(" · ");
+    return note.length ? `${shortHash(hash, 12, 8)} · ${note.join(" · ")}` : `ruling ${shortHash(hash, 12, 8)}`;
   }
   if (event.stage === "settled") {
     return [event.cardLast4 ? `card ••${event.cardLast4}` : null, event.transactionId]
@@ -86,6 +107,10 @@ export function Record({
   probing,
   probeNote,
   onProbe,
+  ledger,
+  funding,
+  fundNote,
+  onFund,
 }: {
   events: FeedEvent[];
   result: Status["lastResult"];
@@ -95,6 +120,10 @@ export function Record({
   probing: boolean;
   probeNote: string | null;
   onProbe: () => void;
+  ledger: RainLedgerRecord | null;
+  funding: boolean;
+  fundNote: string | null;
+  onFund: () => void;
 }) {
   const ordered = [...events].reverse();
 
@@ -132,7 +161,9 @@ export function Record({
               const basis = basisFor(event);
               return (
                 <li
-                  key={event.id}
+                  // id alone is not unique across a dev-server restart, where
+                  // ids restart at 1; the timestamp disambiguates.
+                  key={`${event.id}:${event.at}`}
                   className="flex items-start gap-2 border-b border-dashed border-paper-3 px-3 py-[7px]"
                 >
                   <span className="datum w-[50px] shrink-0 pt-[5px] text-[10px] text-ink-3">
@@ -189,36 +220,81 @@ export function Record({
                 {cardsMinted !== null ? `${cardsMinted} minted this session` : "issuer record"}
               </span>
             </div>
+            {/* Both halves of the receipt, side by side: what we recorded, and
+                what Rain's ledger independently posted. The amounts agreeing
+                is the point of the pairing. */}
             <div className="mt-1 grid grid-cols-1 gap-x-5 sm:grid-cols-2">
-              <Datum label="card" emphasis>
-                •••• {result.receipt.last4 ?? "····"}
-              </Datum>
-              <Datum label="amount" emphasis>
-                {usd(result.receipt.amount)}
-              </Datum>
-              <Datum label="transaction">{result.receipt.transactionId ?? "none"}</Datum>
-              <Datum label="ruling">
-                {result.receipt.onchainRef ? (
-                  <a
-                    href={`${explorerBase}/tx/${result.receipt.onchainRef}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-dotted underline-offset-[3px] transition-colors hover:bg-signal hover:text-ink"
-                  >
-                    {shortHash(result.receipt.onchainRef, 10, 8)}
-                  </a>
+              <div>
+                <span className="label">our record</span>
+                <Datum label="card" emphasis>
+                  •••• {result.receipt.last4 ?? "····"}
+                </Datum>
+                <Datum label="amount" emphasis>
+                  {usd(result.receipt.amount)}
+                </Datum>
+                <Datum label="transaction">
+                  {result.receipt.transactionId
+                    ? shortHash(result.receipt.transactionId, 10, 6)
+                    : "none"}
+                </Datum>
+                <Datum label="ruling">
+                  {result.receipt.onchainRef ? (
+                    <a
+                      href={`${explorerBase}/tx/${result.receipt.onchainRef}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-dotted underline-offset-[3px] transition-colors hover:bg-signal hover:text-ink"
+                    >
+                      {shortHash(result.receipt.onchainRef, 10, 8)}
+                    </a>
+                  ) : (
+                    "none"
+                  )}
+                </Datum>
+              </div>
+              <div>
+                <span className="label">rain&rsquo;s ledger</span>
+                {ledger ? (
+                  <>
+                    <Datum label="status" emphasis>
+                      {ledger.status ?? "unknown"}
+                    </Datum>
+                    <Datum label="amount" emphasis>
+                      {ledger.amount !== null ? usd(ledger.amount) : "unknown"}
+                    </Datum>
+                    <Datum label="merchant">{ledger.merchantName ?? "unknown"}</Datum>
+                    <Datum label="posted">
+                      {ledger.postedAt ? clock(Date.parse(ledger.postedAt)) : "not yet"}
+                    </Datum>
+                  </>
                 ) : (
-                  "none"
+                  <Note className="mt-1">
+                    Reading the issuer&rsquo;s own record of this transaction. If this stays
+                    empty, only our side of the receipt has been seen.
+                  </Note>
                 )}
-              </Datum>
+              </div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              {/* A read, not a new authorization: the settled card is already
+                  retired, so the proof lives in the run's own record. */}
               <Button busy={probing} onClick={onProbe}>
-                test the card bounds
+                show the spend controls
               </Button>
               <span className="datum flex-1 text-[10px] text-ink-3">
                 {probeNote ??
-                  "sends a real authorization at a category this card is not scoped to."}
+                  "the issuer refused a category outside this card's MCC allowlist. press for the evidence."}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {/* The funding beat: a simulated $2 down the payment route, and
+                  the strip narrates the transfer until Rain's ledger posts it. */}
+              <Button busy={funding} onClick={onFund}>
+                fund the budget
+              </Button>
+              <span className="datum flex-1 text-[10px] text-ink-3">
+                {fundNote ??
+                  "push $2 down the payment route and watch the transfer land on rain's ledger."}
               </span>
             </div>
           </div>
@@ -226,6 +302,18 @@ export function Record({
           <div className="field-refuse px-3 py-[10px]">
             <div className="bit bit-16">refused</div>
             <p className="datum mt-1 break-all">{result.error}</p>
+            {result.onchainRef ? (
+              <p className="datum mt-1 text-[11px]">
+                <a
+                  href={`${explorerBase}/tx/${result.onchainRef}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-dotted underline-offset-[3px] transition-colors hover:bg-signal hover:text-ink"
+                >
+                  the refusal, on chain: {shortHash(result.onchainRef, 10, 8)}
+                </a>
+              </p>
+            ) : null}
             <p className="mt-[6px] text-[12px] leading-[1.45]">
               No instrument was created. There is nothing for an agent to spend with.
             </p>

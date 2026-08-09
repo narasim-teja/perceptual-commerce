@@ -30,12 +30,20 @@ export async function POST(request: Request) {
   const confidence = Number(body.confidence);
   const basis = typeof body.basis === "string" ? body.basis.slice(0, MAX_BASIS).trim() : "";
 
-  const result = await trigger({
-    ...(body.signal ? { signal: String(body.signal).slice(0, 120) } : {}),
-    ...(Number.isFinite(confidence) ? { confidence: Math.max(0, Math.min(1, confidence)) } : {}),
-    ...(body.evidence ? { evidence: String(body.evidence).slice(0, 120) } : {}),
-    ...(basis ? { basis } : {}),
-  });
-
-  return NextResponse.json(result);
+  try {
+    const result = await trigger({
+      ...(body.signal ? { signal: String(body.signal).slice(0, 120) } : {}),
+      ...(Number.isFinite(confidence) ? { confidence: Math.max(0, Math.min(1, confidence)) } : {}),
+      ...(body.evidence ? { evidence: String(body.evidence).slice(0, 120) } : {}),
+      ...(basis ? { basis } : {}),
+    });
+    return NextResponse.json(result);
+  } catch (e) {
+    // A broken .env throws here on first touch. That must reach the client as
+    // JSON it can render, not as Next's HTML 500 page.
+    return NextResponse.json(
+      { ok: false, error: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
 }
