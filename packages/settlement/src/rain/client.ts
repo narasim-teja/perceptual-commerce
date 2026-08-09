@@ -60,7 +60,7 @@ export interface RainError {
 }
 
 interface RequestOptions {
-  readonly method?: "GET" | "POST";
+  readonly method?: "GET" | "POST" | "DELETE";
   readonly body?: unknown;
   readonly headers?: Record<string, string>;
   readonly idempotencyKey?: string;

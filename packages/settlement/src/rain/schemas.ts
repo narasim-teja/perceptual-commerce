@@ -121,10 +121,85 @@ export const spendTransaction = z
   })
   .loose();
 
+/**
+ * A `transfer` row — what a payment-route deposit becomes once it reaches the
+ * issuing ledger. Everything inside is optional on purpose: the spec nests the
+ * payload under `transfer` but we have not pinned its full sandbox shape, and a
+ * funding read must degrade to "it exists" rather than reject the ledger.
+ */
+export const transferTransaction = z
+  .object({
+    id: z.uuid(),
+    type: z.literal("transfer"),
+    transfer: z
+      .object({
+        amount: z.union([z.number(), z.string()]).optional(),
+        currency: z.string().optional(),
+        status: z.string().optional(),
+        createdAt: z.string().optional(),
+        postedAt: z.string().optional(),
+      })
+      .loose()
+      .optional(),
+  })
+  .loose();
+
 /** Any transaction: we parse the ones we understand and pass the rest through untouched. */
-export const anyTransaction = z.union([spendTransaction, z.object({ id: z.uuid(), type: z.string() }).loose()]);
+export const anyTransaction = z.union([
+  spendTransaction,
+  transferTransaction,
+  z.object({ id: z.uuid(), type: z.string() }).loose(),
+]);
 
 export const transactionList = z.array(anyTransaction);
+
+// ─── payment routes ───────────────────────────────────────────────────────────
+
+/**
+ * The amount on `POST /simulate/payment-routes` is a decimal STRING in MAJOR
+ * units — "2" is two dollars — with a sandbox-enforced minimum of "2". Every
+ * other amount in this API is integer cents, so the type is deliberately loud:
+ * a number here is a 400, and a "200" here is two hundred dollars.
+ */
+export const routeAmount = z
+  .string()
+  .regex(/^\d+(\.\d{1,2})?$/, "a decimal string in dollars, e.g. \"2\"")
+  .refine((s) => Number(s) >= 2, "the sandbox minimum is \"2\"");
+
+const routeEndpoint = z.object({ currency: z.string(), rail: z.string() }).loose();
+
+/**
+ * POST /payment-routes | GET /payment-routes/{id}
+ *
+ * Routes are immutable: there is no PATCH, only DELETE. `depositAddress` is the
+ * point of the object — where the source rail's money lands — but it is kept
+ * optional so a list read that omits it does not fail the whole page.
+ */
+export const paymentRoute = z
+  .object({
+    id: z.uuid(),
+    userId: z.uuid().optional(),
+    status: z.string().optional(),
+    source: routeEndpoint.optional(),
+    destination: routeEndpoint.optional(),
+    depositAddress: z.string().optional(),
+  })
+  .loose();
+
+export const paymentRouteList = z.array(paymentRoute);
+
+/**
+ * POST /simulate/payment-routes — 202, not 200: the deposit is queued, and the
+ * evidence arrives later as a `transfer` row in GET /issuing/transactions.
+ */
+export const simulatePaymentRouteResponse = z
+  .object({
+    simulationId: z.string(),
+    flow: z.string().optional(),
+    status: z.string(),
+    provider: z.string().optional(),
+  })
+  .loose();
 
 /** Simulated decline reasons Rain accepts on the authorize endpoint. */
 export const DECLINE_REASONS = [
@@ -144,3 +219,8 @@ export const DECLINE_REASONS = [
 export type ScopedCardResponse = z.infer<typeof scopedCardResponse>;
 export type IssuingCard = z.infer<typeof issuingCard>;
 export type SimulateTransactionResponse = z.infer<typeof simulateTransactionResponse>;
+export type SpendTransaction = z.infer<typeof spendTransaction>;
+export type TransferTransaction = z.infer<typeof transferTransaction>;
+export type AnyTransaction = z.infer<typeof anyTransaction>;
+export type PaymentRoute = z.infer<typeof paymentRoute>;
+export type SimulatePaymentRouteResponse = z.infer<typeof simulatePaymentRouteResponse>;

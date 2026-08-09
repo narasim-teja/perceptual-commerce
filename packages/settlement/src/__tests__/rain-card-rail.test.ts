@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { cents, type Authorization, type IntentId, type SpendIntent } from "@pc/core";
 import { rainClient } from "../rain/client.ts";
 import { fakeRainServer, type FakeRainServer } from "../rain/fixtures.ts";
-import { probeWrongCategory, rainCardRail } from "../rain/rain-card-rail.ts";
+import { probeWrongCategory, rainCardRail, type RailEvent } from "../rain/rain-card-rail.ts";
 import { getCard } from "../rain/cards.ts";
 
 const NOW = Date.now();
@@ -226,6 +226,40 @@ describe("the sandbox's real behaviour is modelled, not smoothed over", () => {
     if (!result.ok) return;
     const probe = await probeWrongCategory(client, result.receipt.cardId!, 999_999, "5411");
     expect(probe.declined).toBe(true);
+  });
+});
+
+describe("rail events are safe to log", () => {
+  test("the minted event carries the card's identity, never its secrets", async () => {
+    const events: RailEvent[] = [];
+    const client = rainClient({
+      apiKey: "test-key",
+      userId: "00000000-0000-4000-8000-0000000000ff",
+      fetch: server.fetch,
+    });
+    const rail = rainCardRail({
+      client,
+      pem: server.pem,
+      simulatePurchase: true,
+      onEvent: (e) => events.push(e),
+    });
+
+    const intent = anIntent();
+    const result = await rail.settle(intent, allowFor(intent));
+    expect(result.ok).toBe(true);
+
+    const minted = events.find((e) => e.kind === "minted");
+    expect(minted).toBeDefined();
+    if (minted?.kind !== "minted") return;
+
+    // Everything a consumer legitimately reads is here...
+    expect(minted.card.cardId).toBeTruthy();
+    expect(minted.card.last4).toHaveLength(4);
+    expect(minted.card.status).toBeTruthy();
+    // ...and the plaintext secrets are not. An event sink is a log line
+    // waiting to happen; the PAN reaches `beforePurchase`, never `onEvent`.
+    expect("pan" in minted.card).toBe(false);
+    expect("cvc" in minted.card).toBe(false);
   });
 });
 

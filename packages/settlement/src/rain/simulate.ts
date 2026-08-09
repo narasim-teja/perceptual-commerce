@@ -13,9 +13,11 @@
 
 import type { RainClient, RainResult } from "./client.ts";
 import {
+  anyTransaction,
   simulateCollateralFundResponse,
   simulateTransactionResponse,
   transactionList,
+  type AnyTransaction,
   type SimulateTransactionResponse,
 } from "./schemas.ts";
 
@@ -70,15 +72,22 @@ export function simulateSettle(
   });
 }
 
-/** Release a hold without posting a transaction. Useful for freeing 24h headroom. */
+/**
+ * Release a hold without posting a transaction. Useful for freeing 24h headroom.
+ *
+ * `newAmount` is the REMAINING authorized amount after the reversal, not the
+ * amount being released — the opposite convention from settle. Omit it entirely
+ * for a full reversal; `{ newAmount: 0 }` and `{}` are the same request said
+ * two ways, and only the second is the spec's.
+ */
 export function simulateReverse(
   client: RainClient,
   transactionId: string,
-  amount?: number,
+  newAmount?: number,
 ): Promise<RainResult<SimulateTransactionResponse>> {
   return client.request(`/simulate/transactions/${transactionId}/reverse`, simulateTransactionResponse, {
     method: "POST",
-    body: amount === undefined ? {} : { amount },
+    body: newAmount === undefined ? {} : { newAmount },
   });
 }
 
@@ -136,4 +145,19 @@ export function listTransactions(
   if (params.type) q.set("type", params.type);
   q.set("limit", String(params.limit ?? 20));
   return client.request(`/issuing/transactions?${q}`, transactionList);
+}
+
+/**
+ * One transaction, by id — Rain's own posted record of a settlement.
+ *
+ * This is the issuer's half of the receipt: after we settle, this read shows
+ * the same amount with the issuer's status and postedAt, from a ledger none of
+ * our code writes to. Merchant fields arrive space-padded (R-13); the schema
+ * trims them on ingest so the caller never sees the padding.
+ */
+export function getTransaction(
+  client: RainClient,
+  transactionId: string,
+): Promise<RainResult<AnyTransaction>> {
+  return client.request(`/issuing/transactions/${transactionId}`, anyTransaction);
 }

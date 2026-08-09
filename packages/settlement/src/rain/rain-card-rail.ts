@@ -63,9 +63,23 @@ export interface RainCardRailConfig {
   readonly beforePurchase?: (card: MintedCard) => Promise<void> | void;
 }
 
+/**
+ * What the "minted" event carries. Not the `MintedCard`: that can hold the
+ * plaintext PAN and CVC, and an event sink is a log line waiting to happen.
+ * The full card stays available to `beforePurchase` and the settle flow, which
+ * need it; nothing that merely observes events does.
+ */
+export interface MintedCardEvent {
+  readonly cardId: string;
+  readonly last4: string;
+  readonly expirationMonth: string;
+  readonly expirationYear: string;
+  readonly status: string;
+}
+
 export type RailEvent =
   | { readonly kind: "minting"; readonly intentId: IntentId; readonly requestedCents: number }
-  | { readonly kind: "minted"; readonly intentId: IntentId; readonly card: MintedCard }
+  | { readonly kind: "minted"; readonly intentId: IntentId; readonly card: MintedCardEvent }
   | { readonly kind: "authorized"; readonly transactionId: string; readonly amount: number }
   | { readonly kind: "settled"; readonly transactionId: string }
   | { readonly kind: "declined"; readonly reason: string };
@@ -114,7 +128,17 @@ export function rainCardRail(config: RainCardRailConfig): SettlementRail {
         );
       }
       const card = minted.value;
-      config.onEvent?.({ kind: "minted", intentId: intent.id, card });
+      config.onEvent?.({
+        kind: "minted",
+        intentId: intent.id,
+        card: {
+          cardId: card.cardId,
+          last4: card.last4,
+          expirationMonth: card.expirationMonth,
+          expirationYear: card.expirationYear,
+          status: card.status,
+        },
+      });
 
       const receipt: Receipt = {
         intentId: intent.id,

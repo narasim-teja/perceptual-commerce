@@ -17,6 +17,11 @@
  *   - `completionReason` comes back lowercase                     (R-12)
  *   - merchant strings are space-padded to ISO-8583 widths        (R-13)
  *   - `companyId` is absent on scoped cards                       (R-10)
+ *   - `/simulate/payment-routes` answers 202 and demands a string
+ *     amount in dollars, minimum "2"; the deposit then surfaces as
+ *     a `transfer` that goes pending → completed on its own clock
+ *   - `reverse` takes `newAmount` = what REMAINS authorized; `{}`
+ *     is a full reversal, and settle-style `amount` is rejected
  *
  * A fixture that is friendlier than production teaches you nothing. This one is
  * exactly as awkward as the real thing, so code that passes here works there.
@@ -36,6 +41,7 @@ export interface FakeRainServer {
   readonly requests: FakeRequest[];
   readonly cards: Map<string, FakeCard>;
   readonly transactions: FakeTransaction[];
+  readonly paymentRoutes: Map<string, FakePaymentRoute>;
   /** Force the next N requests to fail, to exercise the unhappy paths. */
   failNext(count: number, status: number, message?: string): void;
   reset(): void;
@@ -61,12 +67,25 @@ export interface FakeCard {
 
 export interface FakeTransaction {
   id: string;
-  cardId: string;
+  type: "spend" | "transfer";
   amount: number;
-  mcc: string;
-  merchantName: string;
-  status: "pending" | "completed" | "declined";
+  status: "pending" | "completed" | "declined" | "reversed";
+  /** Spend rows only. A transfer belongs to the account, not to a card. */
+  cardId?: string;
+  mcc?: string;
+  merchantName?: string;
   declinedReason?: string;
+  /** Epoch ms. Transfers ripen against this: pending until `transferSettleMs` pass. */
+  createdAt: number;
+}
+
+export interface FakePaymentRoute {
+  id: string;
+  userId: string;
+  status: string;
+  source: { currency: string; rail: string };
+  destination: { currency: string; rail: string; address: { type: string; address: string } };
+  depositAddress: string;
 }
 
 export interface FakeRainOptions {
@@ -76,11 +95,18 @@ export interface FakeRainOptions {
   readonly buffer?: number;
   /** Deterministic ids, so test output is stable. */
   readonly seed?: number;
+  /**
+   * How long a payment-route transfer stays `pending` before it reads as
+   * `completed`. Default 200ms: long enough that a poll genuinely polls,
+   * short enough that a test does not care.
+   */
+  readonly transferSettleMs?: number;
 }
 
 export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
   const singleUse = options.singleUseCards ?? true;
   const buffer = options.buffer ?? 1.2;
+  const transferSettleMs = options.transferSettleMs ?? 200;
 
   const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -90,6 +116,7 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
 
   const cards = new Map<string, FakeCard>();
   const transactions: FakeTransaction[] = [];
+  const paymentRoutes = new Map<string, FakePaymentRoute>();
   const requests: FakeRequest[] = [];
   const idempotency = new Map<string, { status: number; body: unknown }>();
   let counter = options.seed ?? 1;
@@ -239,12 +266,14 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       const declineFor = (reason: string) => {
         transactions.push({
           id,
+          type: "spend",
           cardId: card.id,
           amount: body.amount,
           mcc,
           merchantName: body.merchantName,
           status: "declined",
           declinedReason: reason,
+          createdAt: Date.now(),
         });
         return json(200, { transactionId: id, status: "declined", declinedReason: reason });
       };
@@ -263,11 +292,13 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
 
       transactions.push({
         id,
+        type: "spend",
         cardId: card.id,
         amount: body.amount,
         mcc,
         merchantName: body.merchantName,
         status: "pending",
+        createdAt: Date.now(),
       });
 
       // R-14: one approved authorization retires the card. Declines above return
@@ -295,10 +326,108 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
       if (!txn) return bad(404, `Transaction ${settleMatch[1]} not found`);
       if (txn.status === "completed") return bad(400, `Transaction ${txn.id} is already settled`);
       if (txn.status === "declined") return bad(400, `Transaction ${txn.id} was declined`);
+      if (txn.status === "reversed") return bad(400, `Transaction ${txn.id} was reversed`);
 
       txn.status = "completed";
       // R-12: lowercase, contra the spec's ["SETTLEMENT","REFUND"].
       return json(200, { transactionId: txn.id, status: "settled", completionReason: "settlement" });
+    }
+
+    // ─── reverse ─────────────────────────────────────────────────────────────
+    const reverseMatch = path.match(/^\/simulate\/transactions\/([^/]+)\/reverse$/);
+    if (reverseMatch && method === "POST") {
+      if (body === undefined || body === null || typeof body !== "object") {
+        return bad(400, "body must be object", { code: "FST_ERR_VALIDATION" });
+      }
+      // The field is `newAmount` — the REMAINING authorized amount — and a
+      // settle-style `amount` is a different request, so it is refused loudly
+      // rather than guessed at.
+      if (body.amount !== undefined) {
+        return bad(400, "body must NOT have additional properties: amount", { code: "FST_ERR_VALIDATION" });
+      }
+      if (body.newAmount !== undefined && (!Number.isInteger(body.newAmount) || body.newAmount < 0)) {
+        return bad(400, "body/newAmount must be >= 0", { code: "FST_ERR_VALIDATION" });
+      }
+
+      const txn = transactions.find((t) => t.id === reverseMatch[1]);
+      if (!txn) return bad(404, `Transaction ${reverseMatch[1]} not found`);
+      if (txn.status !== "pending") return bad(400, `Transaction ${txn.id} is not pending`);
+      if (body.newAmount !== undefined && body.newAmount > txn.amount) {
+        return bad(400, "body/newAmount exceeds the authorized amount");
+      }
+
+      if (body.newAmount === undefined || body.newAmount === 0) {
+        txn.status = "reversed";
+      } else {
+        txn.amount = body.newAmount;
+      }
+      return json(200, { transactionId: txn.id, status: "authorized" });
+    }
+
+    // ─── payment routes ──────────────────────────────────────────────────────
+    if (path === "/payment-routes" && method === "POST") {
+      const source = body?.source;
+      const destination = body?.destination;
+      if (typeof body?.userId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.userId)) {
+        return bad(400, "body/userId must be a uuid");
+      }
+      if (!source?.currency || !source?.rail) return bad(400, "body/source must have currency and rail");
+      if (!destination?.currency || !destination?.rail) {
+        return bad(400, "body/destination must have currency and rail");
+      }
+      if (destination?.address?.type !== "onchain" || !destination?.address?.address) {
+        return bad(400, "body/destination/address must be { type: 'onchain', address }");
+      }
+      const route: FakePaymentRoute = {
+        id: uuid(),
+        userId: body.userId,
+        status: "created",
+        source: { currency: source.currency, rail: source.rail },
+        destination: {
+          currency: destination.currency,
+          rail: destination.rail,
+          address: { type: "onchain", address: destination.address.address },
+        },
+        depositAddress: `0x${(counter++).toString(16).padStart(40, "0")}`,
+      };
+      paymentRoutes.set(route.id, route);
+      return json(200, route);
+    }
+
+    if (path === "/payment-routes" && method === "GET") {
+      return json(200, [...paymentRoutes.values()]);
+    }
+
+    const routeMatch = path.match(/^\/payment-routes\/([^/]+)$/);
+    if (routeMatch && method === "GET") {
+      const route = paymentRoutes.get(routeMatch[1]!);
+      return route ? json(200, route) : bad(404, `Payment route ${routeMatch[1]} not found`);
+    }
+    if (routeMatch && method === "DELETE") {
+      // The one mutation a route supports. There is no PATCH: routes are immutable.
+      if (!paymentRoutes.delete(routeMatch[1]!)) return bad(404, `Payment route ${routeMatch[1]} not found`);
+      return json(200, { success: true });
+    }
+
+    if (path === "/simulate/payment-routes" && method === "POST") {
+      const route = paymentRoutes.get(body?.paymentRouteId);
+      if (!route) return bad(404, `Payment route ${body?.paymentRouteId} not found`);
+      // The sandbox's real quirk: a decimal STRING in dollars, minimum "2".
+      // Integer cents here is a 400, and it must stay a 400 in the fake.
+      if (typeof body?.amount !== "string" || !/^\d+(\.\d{1,2})?$/.test(body.amount)) {
+        return bad(400, "body/amount must be a decimal string");
+      }
+      if (Number(body.amount) < 2) return bad(400, "body/amount must be at least 2");
+
+      transactions.push({
+        id: uuid(),
+        type: "transfer",
+        amount: Math.round(Number(body.amount) * 100),
+        status: "pending",
+        createdAt: Date.now(),
+      });
+      // 202: the deposit is queued. The evidence is the transfer row, later.
+      return json(202, { simulationId: uuid(), flow: "onramp", status: "accepted", provider: "fake" });
     }
 
     // ─── collateral ──────────────────────────────────────────────────────────
@@ -309,37 +438,67 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
     }
 
     // ─── transactions ────────────────────────────────────────────────────────
+    /** A transfer ripens on its own clock: pending until transferSettleMs pass. */
+    const transferStatus = (t: FakeTransaction) =>
+      t.status === "pending" && Date.now() - t.createdAt >= transferSettleMs ? "completed" : t.status;
+
+    const renderTxn = (t: FakeTransaction) =>
+      t.type === "transfer"
+        ? {
+            id: t.id,
+            type: "transfer",
+            transfer: {
+              amount: t.amount,
+              currency: "usd", // R-12: lowercase
+              status: transferStatus(t),
+              createdAt: new Date(t.createdAt).toISOString(),
+              ...(transferStatus(t) === "completed"
+                ? { postedAt: new Date(t.createdAt + transferSettleMs).toISOString() }
+                : {}),
+            },
+          }
+        : {
+            id: t.id,
+            type: "spend",
+            spend: {
+              amount: t.amount,
+              currency: "usd", // R-12: lowercase
+              authorizedAmount: t.amount,
+              merchantName: pad(t.merchantName ?? "", 25), // R-13: padded
+              merchantCategory: pad("Unknown", 25),
+              merchantCategoryCode: t.mcc,
+              merchantCity: pad("", 13),
+              merchantCountry: pad("", 2),
+              cardId: t.cardId,
+              cardType: "virtual",
+              userId: "00000000-0000-4000-8000-0000000000ff",
+              userFirstName: "Test",
+              userEmail: "test@example.com",
+              status: t.status,
+              ...(t.declinedReason ? { declinedReason: t.declinedReason } : {}),
+              authorizedAt: new Date(0).toISOString(),
+              ...(t.status === "completed" ? { postedAt: new Date(0).toISOString() } : {}),
+            },
+          };
+
     if (path === "/issuing/transactions" && method === "GET") {
       const cardId = url.searchParams.get("cardId");
       const type = url.searchParams.get("type");
-      // R-08 again: collateral deposits never show up here.
-      if (type && type !== "spend") return json(200, []);
+      // R-08 still holds for collateral: those deposits never show up here.
+      // Payment-route transfers DO — that asymmetry is the sandbox's, not ours.
+      if (type && type !== "spend" && type !== "transfer") return json(200, []);
       const rows = transactions
+        .filter((t) => !type || t.type === type)
         .filter((t) => !cardId || t.cardId === cardId)
-        .map((t) => ({
-          id: t.id,
-          type: "spend",
-          spend: {
-            amount: t.amount,
-            currency: "usd", // R-12: lowercase
-            authorizedAmount: t.amount,
-            merchantName: pad(t.merchantName, 25), // R-13: padded
-            merchantCategory: pad("Unknown", 25),
-            merchantCategoryCode: t.mcc,
-            merchantCity: pad("", 13),
-            merchantCountry: pad("", 2),
-            cardId: t.cardId,
-            cardType: "virtual",
-            userId: "00000000-0000-4000-8000-0000000000ff",
-            userFirstName: "Test",
-            userEmail: "test@example.com",
-            status: t.status,
-            ...(t.declinedReason ? { declinedReason: t.declinedReason } : {}),
-            authorizedAt: new Date(0).toISOString(),
-            ...(t.status === "completed" ? { postedAt: new Date(0).toISOString() } : {}),
-          },
-        }));
+        .map(renderTxn);
       return json(200, rows);
+    }
+
+    const txnMatch = path.match(/^\/issuing\/transactions\/([^/]+)$/);
+    if (txnMatch && method === "GET") {
+      const txn = transactions.find((t) => t.id === txnMatch[1]);
+      if (!txn) return bad(404, `Transaction ${txnMatch[1]} not found`);
+      return json(200, renderTxn(txn));
     }
 
     return bad(404, `no fake route for ${method} ${path}`);
@@ -351,12 +510,14 @@ export function fakeRainServer(options: FakeRainOptions = {}): FakeRainServer {
     requests,
     cards,
     transactions,
+    paymentRoutes,
     failNext(count, status, message) {
       failures = { count, status, message: message ?? "simulated failure" };
     },
     reset() {
       cards.clear();
       transactions.length = 0;
+      paymentRoutes.clear();
       requests.length = 0;
       idempotency.clear();
       failures = { count: 0, status: 500, message: "" };
