@@ -14,7 +14,7 @@
  */
 
 import { Button, Datum, Note, Panel, Stamp, cx } from "@/components/kit";
-import { shortHash, usd, type PolicyState, type Status } from "@/lib/api";
+import { mccLabel, shortHash, usd, type PolicyState, type Status } from "@/lib/api";
 
 /**
  * A viem RPC failure carries the whole request body, the raw calldata and a
@@ -166,7 +166,7 @@ export function Gate({
           {payee ? (
             <>
               <Datum label="payee">
-                {payee.name} <span className="text-ink-3">mcc {payee.mcc}</span>
+                {payee.name} <span className="text-ink-3">mcc {mccLabel(payee.mcc)}</span>
               </Datum>
               <Datum label="proposed">{usd(payee.amount)}</Datum>
             </>

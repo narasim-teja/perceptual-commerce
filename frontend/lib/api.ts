@@ -191,6 +191,24 @@ export async function postFund(): Promise<FundResult> {
 
 export const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+/**
+ * The categories this demo can actually surface, named. An MCC is the unit the
+ * card's allowlist is scoped in, and a judge should not have to know the ISO
+ * table to read the sheet. Codes outside this map print as bare numbers, which
+ * is the honest fallback: an unnamed category is still a category.
+ */
+const MCC_NAMES: Record<string, string> = {
+  "5411": "grocery stores",
+  "5812": "restaurants",
+  "5813": "bars and nightclubs",
+  "5814": "fast food",
+  "5912": "drug stores",
+  "5999": "misc retail",
+};
+
+export const mccLabel = (code: string) =>
+  MCC_NAMES[code] ? `${code} ${MCC_NAMES[code]}` : code;
+
 export const shortHash = (hash: string, lead = 10, tail = 8) =>
   hash.length <= lead + tail ? hash : `${hash.slice(0, lead)}…${hash.slice(-tail)}`;
 

@@ -14,6 +14,7 @@ import { Button, Datum, Note, Panel, cx } from "@/components/kit";
 import {
   STAGE_META,
   clock,
+  mccLabel,
   shortHash,
   usd,
   type FeedEvent,
@@ -77,7 +78,7 @@ function detailFor(event: FeedEvent): string | null {
       .join("  ");
   }
   if (event.stage === "proposed" && event.amount) {
-    return `${usd(event.amount)} to ${event.payee ?? "?"}, mcc ${event.mcc ?? "?"}`;
+    return `${usd(event.amount)} to ${event.payee ?? "?"}, mcc ${event.mcc ? mccLabel(event.mcc) : "?"}`;
   }
   if (event.stage === "observed" && event.signal) {
     return event.confidence !== null
@@ -110,9 +111,6 @@ export function Record({
   probeNote,
   onProbe,
   ledger,
-  funding,
-  fundNote,
-  onFund,
 }: {
   events: FeedEvent[];
   result: Status["lastResult"];
@@ -123,9 +121,6 @@ export function Record({
   probeNote: string | null;
   onProbe: () => void;
   ledger: RainLedgerRecord | null;
-  funding: boolean;
-  fundNote: string | null;
-  onFund: () => void;
 }) {
   const ordered = [...events].reverse();
 
@@ -300,26 +295,9 @@ export function Record({
                 </p>
               ) : null}
             </div>
-            <div className="mt-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* The funding beat: a simulated $2 down the payment route, and
-                    the strip narrates the transfer until Rain's ledger posts it. */}
-                <Button busy={funding} onClick={onFund}>
-                  fund the budget
-                </Button>
-                {fundNote === null ? (
-                  <span className="datum flex-1 text-[10px] text-ink-3">
-                    push $2 down the payment route and watch the transfer land on rain&rsquo;s
-                    ledger.
-                  </span>
-                ) : null}
-              </div>
-              {fundNote !== null ? (
-                <p className="datum mt-2 border-l-2 border-ink pl-2 text-[11px] leading-normal text-ink-2 wrap-break-word">
-                  {fundNote}
-                </p>
-              ) : null}
-            </div>
+            {/* The funding beat stays a server capability (/api/fund and the
+                spike drive it); the sheet keeps to the spend story. Funding
+                rows that do arrive on the feed still narrate themselves. */}
           </div>
         ) : (
           <div className="field-refuse px-3 py-[10px]">

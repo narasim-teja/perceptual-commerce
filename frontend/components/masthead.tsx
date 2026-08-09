@@ -33,12 +33,22 @@ const MARK = [
 ];
 
 function Mark() {
+  // The 2x2 pupil takes the accent, matching the favicon and public/logo.svg:
+  // one mark, drawn once, worn everywhere.
+  const pupil = (x: number, y: number) => (x === 3 || x === 4) && (y === 3 || y === 4);
   return (
     <svg viewBox="0 0 8 8" className="size-6 shrink-0" aria-hidden focusable="false">
       {MARK.flatMap((row, y) =>
         row.split("").map((cell, x) =>
           cell === "#" ? (
-            <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />
+            <rect
+              key={`${x}-${y}`}
+              x={x}
+              y={y}
+              width="1"
+              height="1"
+              fill={pupil(x, y) ? "var(--color-signal)" : "currentColor"}
+            />
           ) : null,
         ),
       )}
@@ -74,10 +84,11 @@ export function Masthead({
 }) {
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 bg-ink px-3 py-[10px] text-ink-inv">
-      <div className="flex items-center gap-[10px]">
+      {/* The brand is the way back to the front page. */}
+      <a href="/" className="flex items-center gap-[10px] hover:text-ink-inv">
         <Mark />
         <h1 className="bit bit-16">perceptual-commerce</h1>
-      </div>
+      </a>
 
       <p
         className={cx(
