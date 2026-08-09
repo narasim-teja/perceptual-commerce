@@ -30,6 +30,7 @@ $5,000 of approved spend, and there is no undo.
 | 04 | `04-simulate-authorize-settle.ts` | wrong-MCC authorization **declined by Rain itself**; happy path authorizes and settles; the card retires after one use | `+ DEMO_CARD_ID`, `--confirm` | ✅ |
 | 05 | `05-monad-policy-rw.ts` | viem reaches Monad; the gate reads; a ruling writes and emits; **an unreachable RPC throws**, which is what makes fail-closed real | nothing for the read half | ✅ |
 | 06 | `06-card-lifecycle-control.ts` | CONTROL: an *unscoped* card (no `allowedMccs`, no `expiresAt`) is **also** retired after one approval — so scoping is not what causes R-14 | `+ --confirm` (costs a card) | ✅ |
+| 07 | `07-payment-route.ts` | the **one immutable** payment route (usd/ach → usdc/base — Base Sepolia; Monad is not a rail) creates and reads back; `--simulate` pushes a $2 deposit (202 accepted, decimal-**string** amount, min `"2"`) and polls the `transfer` in `GET /issuing/transactions` to `completed` | `+ --confirm`, destination via `--address` or `RAIN_FUND_DESTINATION_ADDRESS` | ❓ |
 
 ## 🔴 The card budget — read before running 03 or 04
 
@@ -50,7 +51,14 @@ bun run spikes/01-collateral-fund.ts --confirm --amount 50000
 bun run spikes/03-mint-scoped-card.ts --confirm --test-idempotency   # replays the same key
 bun run spikes/04-simulate-authorize-settle.ts --confirm --card-id <uuid> --amount 1999
 bun run spikes/05-monad-policy-rw.ts --confirm                        # writes a ruling onchain
+bun run spikes/07-payment-route.ts --confirm --address 0x…            # create the route, once
+bun run spikes/07-payment-route.ts --confirm --simulate               # $2 deposit + poll the transfer
 ```
+
+Spike 07's route is **immutable and permanent** — create it once, put the printed id in `.env` as
+`RAIN_PAYMENT_ROUTE_ID`, and every later `--simulate` (and the console's "fund the budget" button)
+reuses it. The simulate amount is a decimal **string in dollars**, minimum `"2"` — the one Rain
+endpoint that is not integer cents.
 
 `--test-idempotency` carries a real risk and says so at runtime: if Rain does **not** honour
 `Idempotency-Key` on card creation (see `docs/FEEDBACK.md` R-03), the replay mints a second card

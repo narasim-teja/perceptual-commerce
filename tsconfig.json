@@ -8,6 +8,6 @@
       "@pc/settlement": ["./packages/settlement/src/index.ts"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "spikes/**/*.ts"],
+  "include": ["packages/*/src/**/*.ts", "spikes/**/*.ts", "examples/**/*.ts"],
   "exclude": ["node_modules", "packages/policy/contract", "frontend"]
 }

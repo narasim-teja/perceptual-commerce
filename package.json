@@ -27,10 +27,12 @@
     "policy:deploy": "bun run scripts/policy.ts deploy",
     "policy:state": "bun run scripts/policy.ts state",
     "web": "bun run --cwd frontend dev",
-    "demo": "bun run packages/app/src/restock.ts"
+    "demo": "bun run packages/app/src/restock.ts",
+    "example": "bun run examples/quickstart.ts"
   },
   "dependencies": {
     "@pc/core": "workspace:*",
+    "@pc/perception": "workspace:*",
     "@pc/policy": "workspace:*",
     "@pc/settlement": "workspace:*"
   },

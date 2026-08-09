@@ -46,9 +46,10 @@ feed changes one file and nothing in the spine.
 Two layers, and it's worth being precise about which is which:
 
 - **The onchain contract is the mint authority.** It decides whether a spending instrument may be
-  *created at all*. No onchain allow → no card → no possible spend.
-- **The card issuer is the spend authority.** A scoped card's bounds — amount, merchant-category
-  allowlist, expiry — are enforced natively at authorization.
+  *created at all*. No onchain allow → no scoped card → no possible spend.
+- **The card issuer is the spend authority.** A scoped card's spend controls — amount ceiling,
+  MCC allowlist, expiry — are enforced natively at authorization, inside the program-level cap
+  and spend interval the issuer enforces account-wide.
 
 We do **not** claim the contract intercepts the live card authorization. Fail-closed at *mint* is
 the accurate description, and it's the stronger one anyway: a compromised or hallucinating agent
@@ -128,6 +129,68 @@ bun run policy:balance      # check the deployer is funded
 bun run policy:deploy       # broadcast, then write the address to .env
 bun run policy:state        # read the live gate back
 ```
+
+## Use it
+
+The whole loop, with nothing configured: no env vars, no network, no chain, no cards. This is
+`examples/quickstart.ts`, verbatim — `bun run example` runs it.
+
+```typescript
+/**
+ * The whole loop on your machine, with nothing configured: no env vars, no
+ * network, no chain, no cards. Run it with `bun run example`.
+ *
+ * Every plane here is the swappable one: `localPolicy` becomes the Monad
+ * contract, the fake Rain server becomes the sandbox, the manual camera becomes
+ * a real one — and this file's shape does not change.
+ */
+
+import { createCommerce, usd } from "@pc/core";
+import { manualSource } from "@pc/perception";
+import { localPolicy } from "@pc/policy";
+import { fakeRainServer, rainCardRail, rainClient } from "@pc/settlement";
+
+const payee = { id: "restaurant-depot", name: "Restaurant Depot", mcc: "5411" };
+
+// POLICY — in-memory here, the onchain contract in production. Same interface.
+const policy = localPolicy({ maxAmountCents: 10_000, allowedPayees: [payee.id], allowedMccs: [payee.mcc] });
+
+// SETTLEMENT — the real client and rail, against an in-process fake Rain server.
+const server = fakeRainServer();
+const client = rainClient({ apiKey: "example", userId: "00000000-0000-4000-8000-000000000001", fetch: server.fetch });
+const rail = rainCardRail({ client, pem: server.pem, simulatePurchase: true });
+
+// PERCEPTION — a source you drive by hand. A camera drops in unchanged.
+const camera = manualSource("shelf-cam-1");
+
+const pipeline = createCommerce({ policy, rail })
+  .watch(camera)
+  .when((obs) => obs.signal === "bottle.stock < 3")
+  .propose(() => ({ amount: usd(42.99), payee, memo: "automatic restock" }))
+  .verify((p) => p.id === "restaurant-depot")
+  .onEvent((e) => console.log(`${e.stage.padEnd(11)} ${e.detail ?? e.intent?.id ?? e.observation?.signal ?? ""}`))
+  .onResult((result) => {
+    if (result.ok) console.log(`\nreceipt     card ****${result.receipt.last4}  txn ${result.receipt.transactionId}`);
+  });
+
+camera.emit({ signal: "bottle.stock < 3", confidence: 0.97 });
+camera.close();
+await pipeline.start();
+```
+
+Swap `localPolicy` for `monadPolicyPlane` and the ruling moves on chain. Swap the fake server for
+real credentials and the card is real. Nothing else in the file moves.
+
+### Security posture
+
+- The console's API routes are unauthenticated **by design**. They are a demo control surface for
+  one operator on one machine, not a deployment target — `next dev` also answers on the LAN, so on
+  a network you do not control run it as `next dev -H 127.0.0.1`. The only writes the routes expose
+  are policy writes, which can cause a refusal but never a spend.
+- The deployer key is a testnet throwaway. It holds testnet gas and rules a testnet contract;
+  nothing it signs can touch real funds.
+- PANs are masked via `maskPan` and never logged. The plaintext PAN exists only inside the settle
+  flow and the `beforePurchase` window; rail events carry `last4` and nothing more.
 
 ## Design rules
 

@@ -6,6 +6,7 @@
       "name": "perceptual-commerce",
       "dependencies": {
         "@pc/core": "workspace:*",
+        "@pc/perception": "workspace:*",
         "@pc/policy": "workspace:*",
         "@pc/settlement": "workspace:*",
       },
@@ -66,9 +67,6 @@
     "packages/core": {
       "name": "@pc/core",
       "version": "0.0.0",
-      "dependencies": {
-        "zod": "^4.1.13",
-      },
     },
     "packages/perception": {
       "name": "@pc/perception",
